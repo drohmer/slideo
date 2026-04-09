@@ -1,0 +1,30 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Data (created at runtime)
+server/data/
+server/uploads/
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+.superpowers/
+
+# Docs internes
+objective.md
+docs/
+
+# Logs
+*.log

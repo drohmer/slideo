@@ -1,0 +1,302 @@
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import type { Presentation, SlideElement, WsMessage } from '../../types';
+import { getPresentation, savePresentation } from '../../api';
+import { useWebSocket } from '../../useWebSocket';
+import { SlidesSidebar } from './SlidesSidebar';
+import { SlideCanvas } from './SlideCanvas';
+import { PropertiesPanel } from './PropertiesPanel';
+
+export function Editor() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [pres, setPres] = useState<Presentation | null>(null);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    if (id) getPresentation(id).then(setPres);
+  }, [id]);
+
+  const autoSave = useCallback((updated: Presentation) => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      savePresentation(updated);
+    }, 1000);
+  }, []);
+
+  const updatePres = useCallback((updater: (prev: Presentation) => Presentation) => {
+    setPres(prev => {
+      if (!prev) return prev;
+      const updated = updater(prev);
+      autoSave(updated);
+      return updated;
+    });
+  }, [autoSave]);
+
+  // Apply remote changes without triggering autoSave
+  const applyRemote = useCallback((updater: (prev: Presentation) => Presentation) => {
+    setPres(prev => prev ? updater(prev) : prev);
+  }, []);
+
+  const handleRemoteMessage = useCallback((msg: WsMessage) => {
+    switch (msg.type) {
+      case 'element:update':
+        applyRemote(prev => ({
+          ...prev,
+          slides: prev.slides.map(s =>
+            s.id === msg.slideId
+              ? { ...s, elements: s.elements.map(el => el.id === msg.element.id ? msg.element : el) }
+              : s
+          ),
+        }));
+        break;
+      case 'element:add':
+        applyRemote(prev => ({
+          ...prev,
+          slides: prev.slides.map(s =>
+            s.id === msg.slideId
+              ? { ...s, elements: [...s.elements, ...msg.elements] }
+              : s
+          ),
+        }));
+        break;
+      case 'element:delete':
+        applyRemote(prev => ({
+          ...prev,
+          slides: prev.slides.map(s =>
+            s.id === msg.slideId
+              ? { ...s, elements: s.elements.filter(el => !msg.elementIds.includes(el.id)) }
+              : s
+          ),
+        }));
+        break;
+      case 'slide:add':
+        applyRemote(prev => {
+          const slides = [...prev.slides];
+          slides.splice(msg.index, 0, msg.slide);
+          return { ...prev, slides };
+        });
+        break;
+      case 'slide:delete':
+        applyRemote(prev => ({
+          ...prev,
+          slides: prev.slides.filter(s => s.id !== msg.slideId),
+        }));
+        break;
+      case 'slide:reorder':
+        applyRemote(prev => {
+          const byId = new Map(prev.slides.map(s => [s.id, s]));
+          return { ...prev, slides: msg.slideIds.map(id => byId.get(id)!).filter(Boolean) };
+        });
+        break;
+      case 'title:update':
+        applyRemote(prev => ({ ...prev, title: msg.title }));
+        break;
+    }
+  }, [applyRemote]);
+
+  const { sendMessage, sendThrottled, isConnected } = useWebSocket(pres?.id, handleRemoteMessage);
+
+  const updateCurrentSlideElements = useCallback((elements: SlideElement[]) => {
+    const slide = pres?.slides[currentSlideIndex];
+    const existingIds = new Set(slide?.elements.map(el => el.id) ?? []);
+    const newElements = elements.filter(el => !existingIds.has(el.id));
+    updatePres(prev => ({
+      ...prev,
+      slides: prev.slides.map((s, i) =>
+        i === currentSlideIndex ? { ...s, elements } : s
+      ),
+    }));
+    if (slide && newElements.length > 0) {
+      sendMessage({ type: 'element:add', slideId: slide.id, elements: newElements });
+    }
+  }, [currentSlideIndex, pres, updatePres, sendMessage]);
+
+  const currentSlide = pres?.slides[currentSlideIndex];
+  const selectedElements = currentSlide?.elements.filter(el => selectedIds.has(el.id)) ?? [];
+
+  const handleSelectElement = useCallback((id: string | null, shiftKey?: boolean) => {
+    if (id === null) {
+      setSelectedIds(new Set());
+    } else if (shiftKey) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    } else {
+      setSelectedIds(new Set([id]));
+    }
+  }, []);
+
+  const handleSelectMultiple = useCallback((ids: string[]) => {
+    setSelectedIds(new Set(ids));
+  }, []);
+
+  const updateElement = useCallback((updated: SlideElement) => {
+    const slideId = pres?.slides[currentSlideIndex]?.id;
+    updatePres(prev => ({
+      ...prev,
+      slides: prev.slides.map((s, i) =>
+        i === currentSlideIndex
+          ? { ...s, elements: s.elements.map(el => (el.id === updated.id ? updated : el)) }
+          : s
+      ),
+    }));
+    if (slideId) sendThrottled({ type: 'element:update', slideId, element: updated });
+  }, [currentSlideIndex, pres, updatePres, sendThrottled]);
+
+  const updateElements = useCallback((updatedEls: SlideElement[]) => {
+    const slideId = pres?.slides[currentSlideIndex]?.id;
+    const map = new Map(updatedEls.map(el => [el.id, el]));
+    updatePres(prev => ({
+      ...prev,
+      slides: prev.slides.map((s, i) =>
+        i === currentSlideIndex
+          ? { ...s, elements: s.elements.map(el => map.get(el.id) ?? el) }
+          : s
+      ),
+    }));
+    if (slideId) {
+      for (const el of updatedEls) {
+        sendThrottled({ type: 'element:update', slideId, element: el });
+      }
+    }
+  }, [currentSlideIndex, pres, updatePres, sendThrottled]);
+
+  const deleteSelected = useCallback(() => {
+    const slideId = pres?.slides[currentSlideIndex]?.id;
+    const ids = [...selectedIds];
+    setSelectedIds(new Set());
+    updatePres(prev => ({
+      ...prev,
+      slides: prev.slides.map((s, i) =>
+        i === currentSlideIndex
+          ? { ...s, elements: s.elements.filter(el => !selectedIds.has(el.id)) }
+          : s
+      ),
+    }));
+    if (slideId && ids.length) sendMessage({ type: 'element:delete', slideId, elementIds: ids });
+  }, [currentSlideIndex, pres, selectedIds, updatePres, sendMessage]);
+
+  const moveGroup = useCallback((draggedId: string, dx: number, dy: number) => {
+    const slide = pres?.slides[currentSlideIndex];
+    updatePres(prev => ({
+      ...prev,
+      slides: prev.slides.map((s, i) =>
+        i === currentSlideIndex
+          ? {
+              ...s,
+              elements: s.elements.map(el =>
+                selectedIds.has(el.id) && el.id !== draggedId
+                  ? { ...el, x: el.x + dx, y: el.y + dy }
+                  : el
+              ),
+            }
+          : s
+      ),
+    }));
+    if (slide) {
+      for (const el of slide.elements) {
+        if (selectedIds.has(el.id) && el.id !== draggedId) {
+          sendThrottled({ type: 'element:update', slideId: slide.id, element: { ...el, x: el.x + dx, y: el.y + dy } });
+        }
+      }
+    }
+  }, [currentSlideIndex, pres, selectedIds, updatePres, sendThrottled]);
+
+  if (!pres) return <div style={{ padding: 40 }}>Chargement...</div>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      {/* Top bar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '8px 16px', background: '#fff', borderBottom: '1px solid rgba(0,0,0,0.1)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span
+            style={{ fontWeight: 700, cursor: 'pointer' }}
+            onClick={() => navigate('/')}
+          >
+            VideoSlide
+          </span>
+          <input
+            value={pres.title}
+            onChange={e => {
+              const title = e.target.value;
+              updatePres(prev => ({ ...prev, title }));
+              sendMessage({ type: 'title:update', title });
+            }}
+            style={{
+              background: 'transparent', border: '1px solid rgba(0,0,0,0.15)',
+              borderRadius: 4, padding: '4px 8px', color: '#1a1a1a', fontSize: 13, width: 220,
+            }}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span
+            title={isConnected ? 'Connecté (temps réel)' : 'Déconnecté'}
+            style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: isConnected ? '#22c55e' : '#ef4444',
+            }}
+          />
+          <button
+            onClick={() => navigate(`/present/${pres.id}`)}
+            style={{
+              background: '#4361ee', border: 'none', borderRadius: 4,
+              padding: '6px 16px', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            Presenter
+          </button>
+        </div>
+      </div>
+
+      {/* Main area */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <SlidesSidebar
+          slides={pres.slides}
+          currentIndex={currentSlideIndex}
+          onSelect={setCurrentSlideIndex}
+          onAdd={() => {
+            const newSlide = { id: crypto.randomUUID(), background: '#ffffff', elements: [] };
+            const index = pres.slides.length;
+            updatePres(prev => ({ ...prev, slides: [...prev.slides, newSlide] }));
+            setCurrentSlideIndex(index);
+            sendMessage({ type: 'slide:add', slide: newSlide, index });
+          }}
+          onDelete={(index) => {
+            if (pres.slides.length <= 1) return;
+            const slideId = pres.slides[index].id;
+            updatePres(prev => ({ ...prev, slides: prev.slides.filter((_, i) => i !== index) }));
+            setCurrentSlideIndex(Math.min(currentSlideIndex, pres.slides.length - 2));
+            sendMessage({ type: 'slide:delete', slideId });
+          }}
+        />
+
+        <SlideCanvas
+          slide={pres.slides[currentSlideIndex]}
+          presentationId={pres.id}
+          selectedIds={selectedIds}
+          onSelectElement={handleSelectElement}
+          onSelectMultiple={handleSelectMultiple}
+          onUpdateElements={updateCurrentSlideElements}
+          onUpdateElement={updateElement}
+          onMoveGroup={moveGroup}
+        />
+
+        <PropertiesPanel
+          elements={selectedElements}
+          onUpdate={updateElement}
+          onUpdateMultiple={updateElements}
+          onDelete={deleteSelected}
+        />
+      </div>
+    </div>
+  );
+}
