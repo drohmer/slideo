@@ -31,31 +31,37 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
         </div>
 
         <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
-          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Aligner</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            <ActionBtn label="← Gauche" onClick={() => {
+          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Aligner horizontalement</div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <ActionBtn label="Gauche" onClick={() => {
               const minX = Math.min(...elements.map(el => el.x));
               onUpdateMultiple(elements.map(el => ({ ...el, x: minX })));
             }} />
-            <ActionBtn label="→ Droite" onClick={() => {
-              const maxRight = Math.max(...elements.map(el => el.x + el.width));
-              onUpdateMultiple(elements.map(el => ({ ...el, x: maxRight - el.width })));
-            }} />
-            <ActionBtn label="↑ Haut" onClick={() => {
-              const minY = Math.min(...elements.map(el => el.y));
-              onUpdateMultiple(elements.map(el => ({ ...el, y: minY })));
-            }} />
-            <ActionBtn label="↓ Bas" onClick={() => {
-              const maxBottom = Math.max(...elements.map(el => el.y + el.height));
-              onUpdateMultiple(elements.map(el => ({ ...el, y: maxBottom - el.height })));
-            }} />
-            <ActionBtn label="⏐ Centre H" onClick={() => {
+            <ActionBtn label="Centre" onClick={() => {
               const avgCenterX = elements.reduce((sum, el) => sum + el.x + el.width / 2, 0) / elements.length;
               onUpdateMultiple(elements.map(el => ({ ...el, x: Math.round(avgCenterX - el.width / 2) })));
             }} />
-            <ActionBtn label="— Centre V" onClick={() => {
+            <ActionBtn label="Droite" onClick={() => {
+              const maxRight = Math.max(...elements.map(el => el.x + el.width));
+              onUpdateMultiple(elements.map(el => ({ ...el, x: maxRight - el.width })));
+            }} />
+          </div>
+        </div>
+
+        <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
+          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Aligner verticalement</div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <ActionBtn label="Haut" onClick={() => {
+              const minY = Math.min(...elements.map(el => el.y));
+              onUpdateMultiple(elements.map(el => ({ ...el, y: minY })));
+            }} />
+            <ActionBtn label="Centre" onClick={() => {
               const avgCenterY = elements.reduce((sum, el) => sum + el.y + el.height / 2, 0) / elements.length;
               onUpdateMultiple(elements.map(el => ({ ...el, y: Math.round(avgCenterY - el.height / 2) })));
+            }} />
+            <ActionBtn label="Bas" onClick={() => {
+              const maxBottom = Math.max(...elements.map(el => el.y + el.height));
+              onUpdateMultiple(elements.map(el => ({ ...el, y: maxBottom - el.height })));
             }} />
           </div>
         </div>
@@ -63,50 +69,18 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
         <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
           <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Même taille</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            <ActionBtn label="Même largeur" onClick={() => {
+            <ActionBtn label="Largeur" onClick={() => {
               const maxW = Math.max(...elements.map(el => el.width));
               onUpdateMultiple(elements.map(el => ({ ...el, width: maxW })));
             }} />
-            <ActionBtn label="Même hauteur" onClick={() => {
+            <ActionBtn label="Hauteur" onClick={() => {
               const maxH = Math.max(...elements.map(el => el.height));
               onUpdateMultiple(elements.map(el => ({ ...el, height: maxH })));
             }} />
-            <ActionBtn label="Même taille" onClick={() => {
+            <ActionBtn label="Les deux" onClick={() => {
               const maxW = Math.max(...elements.map(el => el.width));
               const maxH = Math.max(...elements.map(el => el.height));
               onUpdateMultiple(elements.map(el => ({ ...el, width: maxW, height: maxH })));
-            }} />
-          </div>
-        </div>
-
-        <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10 }}>
-          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Distribuer</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            <ActionBtn label="↔ Horizontal" onClick={() => {
-              const sorted = [...elements].sort((a, b) => a.x - b.x);
-              const minX = sorted[0].x;
-              const maxRight = sorted[sorted.length - 1].x + sorted[sorted.length - 1].width;
-              const totalWidth = sorted.reduce((sum, el) => sum + el.width, 0);
-              const gap = (maxRight - minX - totalWidth) / (sorted.length - 1);
-              let currentX = minX;
-              onUpdateMultiple(sorted.map(el => {
-                const updated = { ...el, x: Math.round(currentX) };
-                currentX += el.width + gap;
-                return updated;
-              }));
-            }} />
-            <ActionBtn label="↕ Vertical" onClick={() => {
-              const sorted = [...elements].sort((a, b) => a.y - b.y);
-              const minY = sorted[0].y;
-              const maxBottom = sorted[sorted.length - 1].y + sorted[sorted.length - 1].height;
-              const totalHeight = sorted.reduce((sum, el) => sum + el.height, 0);
-              const gap = (maxBottom - minY - totalHeight) / (sorted.length - 1);
-              let currentY = minY;
-              onUpdateMultiple(sorted.map(el => {
-                const updated = { ...el, y: Math.round(currentY) };
-                currentY += el.height + gap;
-                return updated;
-              }));
             }} />
           </div>
         </div>

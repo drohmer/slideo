@@ -88,6 +88,9 @@ export function SlideCanvas({
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [liveTextScale, setLiveTextScale] = useState<{ id: string; scale: number } | null>(null);
+  // Live drag offset for group movement
+  const [groupDragOffset, setGroupDragOffset] = useState<{ dx: number; dy: number } | null>(null);
+  const draggingIdRef = useRef<string | null>(null);
 
   // Marquee selection state
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -126,11 +129,11 @@ export function SlideCanvas({
     }
   }, [pan]);
 
-  const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only start marquee if clicking on the canvas background itself
-    if (e.target !== canvasRef.current) return;
+  const startMarquee = useCallback((e: React.MouseEvent) => {
     if (e.ctrlKey || e.metaKey) return; // panning takes priority
     if (e.button !== 0) return;
+    // Only start on background clicks (not on child elements like Rnd, buttons, etc.)
+    if (e.target !== e.currentTarget) return;
 
     e.preventDefault();
     const pos = screenToCanvas(e.clientX, e.clientY);
@@ -261,10 +264,18 @@ export function SlideCanvas({
         cursor: isPanning.current ? 'grabbing' : undefined,
       }}
       onWheel={handleWheel}
-      onMouseDown={handleMouseDown}
+      onMouseDown={(e) => {
+        handleMouseDown(e);
+        startMarquee(e);
+      }}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onSelectElement(null);
+        }
+      }}
     >
       {/* Toolbar */}
       <div style={{ marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -287,15 +298,23 @@ export function SlideCanvas({
       </div>
 
       {/* Canvas wrapper with zoom + pan */}
-      <div style={{
-        transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-        transformOrigin: 'center center',
-        transition: isPanning.current ? 'none' : 'transform 0.1s ease-out',
-      }}>
+      <div
+        style={{
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          transformOrigin: 'center center',
+          transition: isPanning.current ? 'none' : 'transform 0.1s ease-out',
+        }}
+        onMouseDown={startMarquee}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onSelectElement(null);
+          }
+        }}
+      >
         <div
           {...getRootProps()}
           ref={canvasRef}
-          onMouseDown={handleCanvasMouseDown}
+          onMouseDown={startMarquee}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               onSelectElement(null);
@@ -304,6 +323,7 @@ export function SlideCanvas({
           style={{
             width: CANVAS_WIDTH, height: CANVAS_HEIGHT,
             background: slide.background, borderRadius: 4, position: 'relative',
+            overflow: 'visible',
             boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
             border: isDragActive ? '2px dashed #4361ee' : '2px solid transparent',
             cursor: isMarquee.current ? 'crosshair' : undefined,
@@ -321,10 +341,15 @@ export function SlideCanvas({
             </div>
           )}
 
-          {/* Marquee overlay — captures all mouse events above Rnd elements */}
+          {/* Marquee overlay — captures all mouse events, extends far beyond canvas */}
           {marquee && (
             <div
-              style={{ position: 'absolute', inset: 0, zIndex: 199, cursor: 'crosshair' }}
+              style={{
+                position: 'absolute',
+                left: -5000, top: -5000,
+                width: 10000 + CANVAS_WIDTH, height: 10000 + CANVAS_HEIGHT,
+                zIndex: 199, cursor: 'crosshair',
+              }}
               onMouseMove={handleMarqueeMouseMove}
               onMouseUp={handleMarqueeMouseUp}
             />
@@ -344,31 +369,72 @@ export function SlideCanvas({
             }} />
           )}
 
+          {/* Group bounding box */}
+          {selectedIds.size > 1 && (() => {
+            const selected = slide.elements.filter(el => selectedIds.has(el.id));
+            if (selected.length < 2) return null;
+            const offX = groupDragOffset?.dx ?? 0;
+            const offY = groupDragOffset?.dy ?? 0;
+            const minX = Math.min(...selected.map(el => el.x)) + offX;
+            const minY = Math.min(...selected.map(el => el.y)) + offY;
+            const maxX = Math.max(...selected.map(el => el.x + el.width)) + offX;
+            const maxY = Math.max(...selected.map(el => el.y + el.height)) + offY;
+            return (
+              <div style={{
+                position: 'absolute',
+                left: minX - 4, top: minY - 4,
+                width: maxX - minX + 8, height: maxY - minY + 8,
+                border: '1px dashed #4361ee',
+                borderRadius: 2,
+                pointerEvents: 'none',
+                zIndex: 150,
+              }} />
+            );
+          })()}
+
           {slide.elements.map(el => {
             const ar = getVideoAR(el);
             const isTextEditing = el.type === 'text' && editingId === el.id;
+            const isSelected = selectedIds.has(el.id);
+            const isMulti = selectedIds.size > 1;
+            // Apply live drag offset to non-dragged selected elements
+            const liveOffset = (isSelected && isMulti && groupDragOffset && draggingIdRef.current !== el.id)
+              ? groupDragOffset : null;
 
             return (
               <Rnd
                 key={el.id}
-                position={{ x: el.x, y: el.y }}
+                position={{
+                  x: el.x + (liveOffset?.dx ?? 0),
+                  y: el.y + (liveOffset?.dy ?? 0),
+                }}
                 size={{ width: el.width, height: el.height }}
-                bounds="parent"
                 scale={zoom}
                 disableDragging={isTextEditing}
-                enableResizing={!isTextEditing}
+                enableResizing={!isTextEditing && !isMulti}
                 lockAspectRatio={el.type === 'video' ? (ar || true) : (el.type === 'image')}
                 onDragStart={() => {
                   dragStartRef.current = { x: el.x, y: el.y };
+                  draggingIdRef.current = el.id;
+                }}
+                onDrag={(_e, d) => {
+                  if (isSelected && isMulti && dragStartRef.current) {
+                    setGroupDragOffset({
+                      dx: d.x - dragStartRef.current.x,
+                      dy: d.y - dragStartRef.current.y,
+                    });
+                  }
                 }}
                 onDragStop={(_e, d) => {
                   onUpdateElement({ ...el, x: d.x, y: d.y });
-                  if (selectedIds.has(el.id) && selectedIds.size > 1 && dragStartRef.current) {
+                  if (isSelected && isMulti && dragStartRef.current) {
                     const dx = d.x - dragStartRef.current.x;
                     const dy = d.y - dragStartRef.current.y;
                     onMoveGroup(el.id, dx, dy);
                   }
                   dragStartRef.current = null;
+                  draggingIdRef.current = null;
+                  setGroupDragOffset(null);
                 }}
                 onResize={el.type === 'text' ? (_e, _dir, ref) => {
                   setLiveTextScale({ id: el.id, scale: parseInt(ref.style.width) / el.width });
@@ -399,8 +465,12 @@ export function SlideCanvas({
                 }}
                 onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
-                  if (!isTextEditing) {
-                    onSelectElement(el.id, e.shiftKey);
+                  if (isTextEditing) return;
+                  if (e.shiftKey) {
+                    onSelectElement(el.id, true);
+                  } else if (!isSelected || !isMulti) {
+                    // Only change selection if not already part of a multi-selection
+                    onSelectElement(el.id);
                   }
                 }}
                 onDoubleClick={(e: React.MouseEvent) => {
@@ -413,13 +483,13 @@ export function SlideCanvas({
                 onMouseEnter={() => setHoveredId(el.id)}
                 onMouseLeave={() => setHoveredId(null)}
                 style={{
-                  outline: selectedIds.has(el.id)
+                  outline: isSelected
                     ? '2px solid #4361ee'
                     : hoveredId === el.id
                       ? '1px dashed rgba(67,97,238,0.5)'
                       : 'none',
-                  outlineOffset: selectedIds.has(el.id) ? 0 : 1,
-                  cursor: isTextEditing ? 'text' : 'move',
+                  outlineOffset: isSelected ? 0 : 1,
+                  cursor: isTextEditing ? 'text' : 'grab',
                 }}
               >
                 {renderElement(el)}
