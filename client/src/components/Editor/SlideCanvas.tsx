@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Rnd } from 'react-rnd';
 import type { Slide, SlideElement, VideoElement, ImageElement } from '../../types';
@@ -7,6 +7,7 @@ import { uploadFile } from '../../api';
 import { VideoEl } from '../Elements/VideoElement';
 import { ImageEl } from '../Elements/ImageElement';
 import { TextEl } from '../Elements/TextElement';
+import { ElementToolbar } from './ElementToolbar';
 
 interface Props {
   slide: Slide;
@@ -21,6 +22,12 @@ interface Props {
   onStartEditing: (id: string) => void;
   onStopEditing: () => void;
   onEditorReady: (editor: TiptapEditor | null) => void;
+  previewPositions?: Array<{ id: string; x: number; y: number; width: number; height: number }> | null;
+  croppingId: string | null;
+  onStartCropping: (id: string) => void;
+  onCommitCrop: () => void;
+  onDeleteSelected: () => void;
+  activeEditor: TiptapEditor | null;
 }
 
 const CANVAS_WIDTH = 960;
@@ -44,6 +51,19 @@ function probeVideoDimensions(src: string): Promise<{ width: number; height: num
   });
 }
 
+function probeImageDimensions(src: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const timeout = setTimeout(() => resolve({ width: 300, height: 200 }), 10000);
+    img.onload = () => {
+      clearTimeout(timeout);
+      resolve({ width: img.naturalWidth || 300, height: img.naturalHeight || 200 });
+    };
+    img.onerror = () => { clearTimeout(timeout); resolve({ width: 300, height: 200 }); };
+    img.src = src;
+  });
+}
+
 function rectsIntersect(
   a: { x: number; y: number; w: number; h: number },
   b: { x: number; y: number; w: number; h: number },
@@ -52,7 +72,7 @@ function rectsIntersect(
 }
 
 export function SlideCanvas({
-  slide, presentationId, selectedIds, editingId, onSelectElement, onSelectMultiple, onUpdateElements, onUpdateElement, onMoveGroup, onStartEditing, onStopEditing, onEditorReady,
+  slide, presentationId, selectedIds, editingId, onSelectElement, onSelectMultiple, onUpdateElements, onUpdateElement, onMoveGroup, onStartEditing, onStopEditing, onEditorReady, previewPositions, croppingId, onStartCropping, onCommitCrop, onDeleteSelected, activeEditor,
 }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -207,9 +227,14 @@ export function SlideCanvas({
         };
         newElements.push(el);
       } else {
+        const dims = await probeImageDimensions(result.path);
+        const maxSide = 400;
+        const scale = Math.min(maxSide / dims.width, maxSide / dims.height, 1);
         const el: ImageElement = {
           id, type: 'image', src: result.path,
-          x: 50, y: 50, width: 300, height: 200,
+          x: 50, y: 50,
+          width: Math.round(dims.width * scale),
+          height: Math.round(dims.height * scale),
         };
         newElements.push(el);
       }
@@ -222,17 +247,6 @@ export function SlideCanvas({
     noClick: true,
     accept: { 'video/*': [], 'image/*': [] },
   });
-
-  const handleAddText = () => {
-    const newElements = [...slide.elements, {
-      id: crypto.randomUUID(),
-      type: 'text' as const,
-      content: 'Double-cliquez pour éditer',
-      x: 50, y: 50, width: 300, height: 40,
-      fontSize: 24, color: '#000000', bold: false,
-    }];
-    onUpdateElements(newElements);
-  };
 
   const renderElement = (el: SlideElement) => {
     const isSelected = selectedIds.has(el.id);
@@ -260,7 +274,7 @@ export function SlideCanvas({
     <div
       style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: 16, overflow: 'hidden',
+        padding: 16, overflow: 'hidden', position: 'relative',
         cursor: isPanning.current ? 'grabbing' : undefined,
       }}
       onWheel={handleWheel}
@@ -277,24 +291,18 @@ export function SlideCanvas({
         }
       }}
     >
-      {/* Toolbar */}
-      <div style={{ marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button onClick={handleAddText} style={{
-          background: '#fff', border: '1px solid rgba(0,0,0,0.15)',
-          borderRadius: 4, padding: '4px 12px', color: '#1a1a1a', fontSize: 12, cursor: 'pointer',
-        }}>
-          + Texte
-        </button>
-        <span style={{ fontSize: 11, opacity: 0.5 }}>
-          {Math.round(zoom * 100)}%
-        </span>
-        <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} style={{
-          background: '#fff', border: '1px solid rgba(0,0,0,0.15)',
-          borderRadius: 4, padding: '2px 8px', color: '#1a1a1a', fontSize: 10, cursor: 'pointer',
-          opacity: zoom === 1 ? 0.4 : 1,
-        }}>
-          Reset
-        </button>
+      {/* Zoom controls — floating bottom-right */}
+      <div style={{
+        position: 'absolute', bottom: 12, right: 12, zIndex: 300,
+        display: 'flex', alignItems: 'center', gap: 4,
+        background: 'rgba(255,255,255,0.9)', borderRadius: 6,
+        padding: '3px 8px', boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+        fontSize: 11, color: '#1a1a1a',
+      }}>
+        <button onClick={() => setZoom(z => Math.max(MIN_ZOOM, Math.round((z - ZOOM_STEP) * 100) / 100))} style={zoomBtnStyle}>−</button>
+        <span style={{ minWidth: 36, textAlign: 'center', opacity: 0.6 }}>{Math.round(zoom * 100)}%</span>
+        <button onClick={() => setZoom(z => Math.min(MAX_ZOOM, Math.round((z + ZOOM_STEP) * 100) / 100))} style={zoomBtnStyle}>+</button>
+        <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} style={{ ...zoomBtnStyle, opacity: zoom === 1 ? 0.3 : 1, marginLeft: 2 }}>Reset</button>
       </div>
 
       {/* Canvas wrapper with zoom + pan */}
@@ -392,6 +400,20 @@ export function SlideCanvas({
             );
           })()}
 
+          {/* Alignment preview ghosts */}
+          {previewPositions && previewPositions.map(p => (
+            <div key={`preview-${p.id}`} style={{
+              position: 'absolute',
+              left: p.x, top: p.y,
+              width: p.width, height: p.height,
+              border: '2px dashed rgba(220,38,38,0.7)',
+              borderRadius: 2,
+              background: 'rgba(220,38,38,0.08)',
+              pointerEvents: 'none',
+              zIndex: 140,
+            }} />
+          ))}
+
           {slide.elements.map(el => {
             const ar = getVideoAR(el);
             const isTextEditing = el.type === 'text' && editingId === el.id;
@@ -400,6 +422,14 @@ export function SlideCanvas({
             // Apply live drag offset to non-dragged selected elements
             const liveOffset = (isSelected && isMulti && groupDragOffset && draggingIdRef.current !== el.id)
               ? groupDragOffset : null;
+
+            // Crop info for visual clip-path (not during crop mode)
+            const isCroppingThis = croppingId === el.id;
+            const ct = (!isCroppingThis && (el.type === 'image' || el.type === 'video')) ? ((el as any).cropTop ?? 0) : 0;
+            const cr = (!isCroppingThis && (el.type === 'image' || el.type === 'video')) ? ((el as any).cropRight ?? 0) : 0;
+            const cb = (!isCroppingThis && (el.type === 'image' || el.type === 'video')) ? ((el as any).cropBottom ?? 0) : 0;
+            const cl = (!isCroppingThis && (el.type === 'image' || el.type === 'video')) ? ((el as any).cropLeft ?? 0) : 0;
+            const hasCrop = ct > 0 || cr > 0 || cb > 0 || cl > 0;
 
             return (
               <Rnd
@@ -410,9 +440,9 @@ export function SlideCanvas({
                 }}
                 size={{ width: el.width, height: el.height }}
                 scale={zoom}
-                disableDragging={isTextEditing}
-                enableResizing={!isTextEditing && !isMulti}
-                lockAspectRatio={el.type === 'video' ? (ar || true) : (el.type === 'image')}
+                disableDragging={isTextEditing || croppingId === el.id}
+                enableResizing={!isTextEditing && !isMulti && croppingId !== el.id}
+                lockAspectRatio={false}
                 onDragStart={() => {
                   dragStartRef.current = { x: el.x, y: el.y };
                   draggingIdRef.current = el.id;
@@ -483,16 +513,56 @@ export function SlideCanvas({
                 onMouseEnter={() => setHoveredId(el.id)}
                 onMouseLeave={() => setHoveredId(null)}
                 style={{
-                  outline: isSelected
+                  outline: (isSelected && !hasCrop)
                     ? '2px solid #4361ee'
-                    : hoveredId === el.id
+                    : (!hasCrop && hoveredId === el.id)
                       ? '1px dashed rgba(67,97,238,0.5)'
                       : 'none',
                   outlineOffset: isSelected ? 0 : 1,
                   cursor: isTextEditing ? 'text' : 'grab',
                 }}
               >
-                {renderElement(el)}
+                <div style={hasCrop ? {
+                  width: '100%', height: '100%',
+                  clipPath: `inset(${ct}% ${cr}% ${cb}% ${cl}%)`,
+                } : undefined}>
+                  {renderElement(el)}
+                </div>
+                {/* Selection outline at the visible (cropped) area */}
+                {hasCrop && isSelected && (
+                  <div style={{
+                    position: 'absolute',
+                    left: `${cl}%`, top: `${ct}%`,
+                    right: `${cr}%`, bottom: `${cb}%`,
+                    border: '2px solid #4361ee',
+                    pointerEvents: 'none',
+                  }} />
+                )}
+                {hasCrop && !isSelected && hoveredId === el.id && (
+                  <div style={{
+                    position: 'absolute',
+                    left: `${cl}%`, top: `${ct}%`,
+                    right: `${cr}%`, bottom: `${cb}%`,
+                    border: '1px dashed rgba(67,97,238,0.5)',
+                    pointerEvents: 'none',
+                  }} />
+                )}
+                {isSelected && !isMulti && !isTextEditing && (
+                  <ElementToolbar
+                    element={el}
+                    onUpdate={onUpdateElement}
+                    onDelete={onDeleteSelected}
+                    onStartCropping={() => {
+                      if (croppingId === el.id) onCommitCrop();
+                      else onStartCropping(el.id);
+                    }}
+                    isCropping={croppingId === el.id}
+                    activeEditor={editingId === el.id ? activeEditor : null}
+                  />
+                )}
+                {croppingId === el.id && (el.type === 'image' || el.type === 'video') && (
+                  <CropHandles element={el} onUpdate={onUpdateElement} zoom={zoom} />
+                )}
               </Rnd>
             );
           })}
@@ -501,3 +571,97 @@ export function SlideCanvas({
     </div>
   );
 }
+
+function CropHandles({ element, onUpdate, zoom }: {
+  element: SlideElement & { cropTop?: number; cropRight?: number; cropBottom?: number; cropLeft?: number };
+  onUpdate: (el: SlideElement) => void;
+  zoom: number;
+}) {
+  const t = element.cropTop ?? 0;
+  const r = element.cropRight ?? 0;
+  const b = element.cropBottom ?? 0;
+  const l = element.cropLeft ?? 0;
+  const w = element.width;
+  const h = element.height;
+
+  // Keep a ref to the latest element to avoid stale closures during drag
+  const elementRef = useRef(element);
+  elementRef.current = element;
+
+  const handleDrag = (side: 'top' | 'right' | 'bottom' | 'left') => (e: ReactPointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startVal = side === 'top' ? t : side === 'right' ? r : side === 'bottom' ? b : l;
+
+    const onMove = (ev: globalThis.PointerEvent) => {
+      const dx = (ev.clientX - startX) / zoom;
+      const dy = (ev.clientY - startY) / zoom;
+      let delta: number;
+      if (side === 'top') delta = dy / h * 100;
+      else if (side === 'bottom') delta = -dy / h * 100;
+      else if (side === 'left') delta = dx / w * 100;
+      else delta = -dx / w * 100;
+      const val = Math.max(0, Math.min(45, Math.round(startVal + delta)));
+      const key = `crop${side[0].toUpperCase()}${side.slice(1)}`;
+      onUpdate({ ...elementRef.current, [key]: val });
+    };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  };
+
+  const handleStyle = (side: 'top' | 'right' | 'bottom' | 'left'): React.CSSProperties => {
+    const base: React.CSSProperties = {
+      position: 'absolute', background: 'rgba(220,38,38,0.6)', zIndex: 10,
+    };
+    const val = side === 'top' ? t : side === 'right' ? r : side === 'bottom' ? b : l;
+    if (side === 'top' || side === 'bottom') {
+      return {
+        ...base,
+        left: 0, right: 0, height: `${val}%`,
+        ...(side === 'top' ? { top: 0 } : { bottom: 0 }),
+        cursor: 'ns-resize',
+      };
+    }
+    return {
+      ...base,
+      top: 0, bottom: 0, width: `${val}%`,
+      ...(side === 'left' ? { left: 0 } : { right: 0 }),
+      cursor: 'ew-resize',
+    };
+  };
+
+  return (
+    <>
+      {(['top', 'right', 'bottom', 'left'] as const).map(side => (
+        <div
+          key={side}
+          style={handleStyle(side)}
+          onPointerDown={handleDrag(side)}
+        >
+          {/* Drag handle line */}
+          <div style={{
+            position: 'absolute',
+            ...(side === 'top' ? { bottom: 0, left: 0, right: 0, height: 3 } :
+                side === 'bottom' ? { top: 0, left: 0, right: 0, height: 3 } :
+                side === 'left' ? { right: 0, top: 0, bottom: 0, width: 3 } :
+                { left: 0, top: 0, bottom: 0, width: 3 }),
+            background: 'rgba(220,38,38,0.9)',
+            cursor: (side === 'top' || side === 'bottom') ? 'ns-resize' : 'ew-resize',
+          }} />
+        </div>
+      ))}
+    </>
+  );
+}
+
+const zoomBtnStyle: React.CSSProperties = {
+  background: 'none', border: 'none', cursor: 'pointer',
+  fontSize: 14, color: '#1a1a1a', padding: '2px 6px', borderRadius: 3,
+  lineHeight: 1,
+};

@@ -17,6 +17,9 @@ export function Editor() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeEditor, setActiveEditor] = useState<TiptapEditor | null>(null);
   const [, setEditorTick] = useState(0);
+  const [previewPositions, setPreviewPositions] = useState<Array<{ id: string; x: number; y: number; width: number; height: number }> | null>(null);
+  const [croppingId, setCroppingId] = useState<string | null>(null);
+  const commitCropRef = useRef<() => void>(() => {});
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -134,6 +137,8 @@ export function Editor() {
   const selectedElements = currentSlide?.elements.filter(el => selectedIds.has(el.id)) ?? [];
 
   const handleSelectElement = useCallback((id: string | null, shiftKey?: boolean) => {
+    // Commit any active crop before changing selection
+    commitCropRef.current();
     if (id === null) {
       setSelectedIds(new Set());
       setEditingId(null);
@@ -147,7 +152,6 @@ export function Editor() {
       setEditingId(null);
     } else {
       setSelectedIds(new Set([id]));
-      // Don't clear editingId if we're clicking the same element that's being edited
       setEditingId(prev => prev === id ? prev : null);
     }
   }, []);
@@ -228,6 +232,40 @@ export function Editor() {
     }
   }, [currentSlideIndex, pres, selectedIds, updatePres, sendThrottled]);
 
+  const handleAddText = useCallback(() => {
+    const slide = pres?.slides[currentSlideIndex];
+    if (!slide) return;
+    const newElements = [...slide.elements, {
+      id: crypto.randomUUID(),
+      type: 'text' as const,
+      content: 'Double-cliquez pour éditer',
+      x: 50, y: 50, width: 300, height: 40,
+      fontSize: 24, color: '#000000', bold: false,
+    }];
+    updateCurrentSlideElements(newElements);
+  }, [pres, currentSlideIndex, updateCurrentSlideElements]);
+
+  const reorderElement = useCallback((elementId: string, direction: 'up' | 'down' | 'top' | 'bottom') => {
+    const slide = pres?.slides[currentSlideIndex];
+    if (!slide) return;
+    const els = [...slide.elements];
+    const idx = els.findIndex(el => el.id === elementId);
+    if (idx === -1) return;
+    const [item] = els.splice(idx, 1);
+    switch (direction) {
+      case 'up': els.splice(Math.min(idx + 1, els.length), 0, item); break;
+      case 'down': els.splice(Math.max(idx - 1, 0), 0, item); break;
+      case 'top': els.push(item); break;
+      case 'bottom': els.unshift(item); break;
+    }
+    updateCurrentSlideElements(els);
+  }, [pres, currentSlideIndex, updateCurrentSlideElements]);
+
+  const commitCrop = useCallback(() => {
+    setCroppingId(null);
+  }, []);
+  commitCropRef.current = commitCrop;
+
   // Keyboard shortcuts (Delete, Escape) — not while editing text or focused on an input
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -239,6 +277,10 @@ export function Editor() {
         e.preventDefault();
         deleteSelected();
       }
+      if (e.key === 'Escape' && croppingId) {
+        commitCrop();
+        return;
+      }
       if (e.key === 'Escape' && selectedIds.size > 0) {
         setSelectedIds(new Set());
         setEditingId(null);
@@ -246,7 +288,7 @@ export function Editor() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIds, editingId, deleteSelected]);
+  }, [selectedIds, editingId, croppingId, deleteSelected, commitCrop]);
 
   if (!pres) return <div style={{ padding: 40 }}>Chargement...</div>;
 
@@ -332,14 +374,26 @@ export function Editor() {
           onStartEditing={setEditingId}
           onStopEditing={() => setEditingId(null)}
           onEditorReady={setActiveEditor}
+          previewPositions={previewPositions}
+          croppingId={croppingId}
+          onStartCropping={setCroppingId}
+          onCommitCrop={commitCrop}
+          onDeleteSelected={deleteSelected}
+          activeEditor={activeEditor}
         />
 
         <PropertiesPanel
           elements={selectedElements}
+          onReorder={reorderElement}
           onUpdate={updateElement}
           onUpdateMultiple={updateElements}
           onDelete={deleteSelected}
+          onPreview={setPreviewPositions}
           activeEditor={activeEditor}
+          onAddText={handleAddText}
+          croppingId={croppingId}
+          onStartCropping={setCroppingId}
+          onStopCropping={commitCrop}
         />
       </div>
     </div>

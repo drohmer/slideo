@@ -1,21 +1,38 @@
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import type { SlideElement, VideoElement, TextElement } from '../../types';
 
+type PreviewPos = Array<{ id: string; x: number; y: number; width: number; height: number }>;
+
 interface Props {
   elements: SlideElement[];
   onUpdate: (element: SlideElement) => void;
   onUpdateMultiple: (elements: SlideElement[]) => void;
   onDelete: () => void;
   activeEditor: TiptapEditor | null;
+  onAddText?: () => void;
+  onPreview?: (positions: PreviewPos | null) => void;
+  onReorder?: (elementId: string, direction: 'up' | 'down' | 'top' | 'bottom') => void;
+  croppingId?: string | null;
+  onStartCropping?: (id: string) => void;
+  onStopCropping?: () => void;
 }
 
-export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor }: Props) {
+export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onPreview, onReorder, croppingId, onStartCropping, onStopCropping }: Props) {
   if (elements.length === 0) {
     return (
       <div style={panelStyle}>
-        <div style={labelStyle}>Propriétés</div>
-        <p style={{ fontSize: 12, opacity: 0.4, marginTop: 12 }}>
-          Sélectionnez un élément pour voir ses propriétés
+        <div style={labelStyle}>Outils</div>
+        {onAddText && (
+          <button onClick={onAddText} style={{
+            width: '100%', background: '#fff', border: '1px solid rgba(0,0,0,0.15)',
+            borderRadius: 4, padding: '6px 0', color: '#1a1a1a', fontSize: 12, cursor: 'pointer',
+            marginBottom: 12,
+          }}>
+            + Texte
+          </button>
+        )}
+        <p style={{ fontSize: 11, opacity: 0.4 }}>
+          Glissez des fichiers sur le canvas pour ajouter des vidéos ou images
         </p>
       </div>
     );
@@ -30,60 +47,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
           {elements.length} éléments sélectionnés
         </div>
 
-        <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
-          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Aligner horizontalement</div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <ActionBtn label="Gauche" onClick={() => {
-              const minX = Math.min(...elements.map(el => el.x));
-              onUpdateMultiple(elements.map(el => ({ ...el, x: minX })));
-            }} />
-            <ActionBtn label="Centre" onClick={() => {
-              const avgCenterX = elements.reduce((sum, el) => sum + el.x + el.width / 2, 0) / elements.length;
-              onUpdateMultiple(elements.map(el => ({ ...el, x: Math.round(avgCenterX - el.width / 2) })));
-            }} />
-            <ActionBtn label="Droite" onClick={() => {
-              const maxRight = Math.max(...elements.map(el => el.x + el.width));
-              onUpdateMultiple(elements.map(el => ({ ...el, x: maxRight - el.width })));
-            }} />
-          </div>
-        </div>
-
-        <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
-          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Aligner verticalement</div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <ActionBtn label="Haut" onClick={() => {
-              const minY = Math.min(...elements.map(el => el.y));
-              onUpdateMultiple(elements.map(el => ({ ...el, y: minY })));
-            }} />
-            <ActionBtn label="Centre" onClick={() => {
-              const avgCenterY = elements.reduce((sum, el) => sum + el.y + el.height / 2, 0) / elements.length;
-              onUpdateMultiple(elements.map(el => ({ ...el, y: Math.round(avgCenterY - el.height / 2) })));
-            }} />
-            <ActionBtn label="Bas" onClick={() => {
-              const maxBottom = Math.max(...elements.map(el => el.y + el.height));
-              onUpdateMultiple(elements.map(el => ({ ...el, y: maxBottom - el.height })));
-            }} />
-          </div>
-        </div>
-
-        <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
-          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Même taille</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            <ActionBtn label="Largeur" onClick={() => {
-              const maxW = Math.max(...elements.map(el => el.width));
-              onUpdateMultiple(elements.map(el => ({ ...el, width: maxW })));
-            }} />
-            <ActionBtn label="Hauteur" onClick={() => {
-              const maxH = Math.max(...elements.map(el => el.height));
-              onUpdateMultiple(elements.map(el => ({ ...el, height: maxH })));
-            }} />
-            <ActionBtn label="Les deux" onClick={() => {
-              const maxW = Math.max(...elements.map(el => el.width));
-              const maxH = Math.max(...elements.map(el => el.height));
-              onUpdateMultiple(elements.map(el => ({ ...el, width: maxW, height: maxH })));
-            }} />
-          </div>
-        </div>
+        <AlignSection elements={elements} onUpdateMultiple={onUpdateMultiple} onPreview={onPreview} />
 
         <button
           onClick={onDelete}
@@ -136,6 +100,51 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
       {element.type === 'video' && <VideoProps element={element} onUpdate={onUpdate} />}
       {element.type === 'text' && <TextProps element={element} onUpdate={onUpdate} activeEditor={activeEditor} />}
 
+      {(element.type === 'image' || element.type === 'video') && (
+        <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginTop: 8 }}>
+          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>Rogner</div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button
+              onClick={() => {
+                if (croppingId === element.id) onStopCropping?.();
+                else onStartCropping?.(element.id);
+              }}
+              style={{
+                flex: 1, background: croppingId === element.id ? '#4361ee' : '#fff',
+                color: croppingId === element.id ? '#fff' : '#1a1a1a',
+                border: '1px solid rgba(0,0,0,0.15)', borderRadius: 3,
+                padding: '4px 8px', fontSize: 10, cursor: 'pointer',
+              }}
+            >
+              ✂ {croppingId === element.id ? 'Terminer' : 'Rogner'}
+            </button>
+            {(element.cropTop || element.cropRight || element.cropBottom || element.cropLeft) ? (
+              <button
+                onClick={() => onUpdate({ ...element, cropTop: 0, cropRight: 0, cropBottom: 0, cropLeft: 0 })}
+                style={{
+                  background: '#fff', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 3,
+                  padding: '4px 8px', fontSize: 10, cursor: 'pointer', color: '#1a1a1a',
+                }}
+              >
+                Reset
+              </button>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {onReorder && (
+        <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginTop: 8 }}>
+          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>Ordre</div>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            <ActionBtn label="Premier plan" onClick={() => onReorder(element.id, 'top')} />
+            <ActionBtn label="Avancer" onClick={() => onReorder(element.id, 'up')} />
+            <ActionBtn label="Reculer" onClick={() => onReorder(element.id, 'down')} />
+            <ActionBtn label="Arrière-plan" onClick={() => onReorder(element.id, 'bottom')} />
+          </div>
+        </div>
+      )}
+
       <button
         onClick={onDelete}
         style={{
@@ -146,6 +155,104 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
         Supprimer
       </button>
     </div>
+  );
+}
+
+function AlignSection({ elements, onUpdateMultiple, onPreview }: {
+  elements: SlideElement[];
+  onUpdateMultiple: (elements: SlideElement[]) => void;
+  onPreview?: (positions: PreviewPos | null) => void;
+}) {
+  const toPreview = (els: SlideElement[]): PreviewPos =>
+    els.map(el => ({ id: el.id, x: el.x, y: el.y, width: el.width, height: el.height }));
+
+  const alignLeft = () => {
+    const minX = Math.min(...elements.map(el => el.x));
+    return elements.map(el => ({ ...el, x: minX }));
+  };
+  const alignCenterH = () => {
+    const avgCX = elements.reduce((s, el) => s + el.x + el.width / 2, 0) / elements.length;
+    return elements.map(el => ({ ...el, x: Math.round(avgCX - el.width / 2) }));
+  };
+  const alignRight = () => {
+    const maxR = Math.max(...elements.map(el => el.x + el.width));
+    return elements.map(el => ({ ...el, x: maxR - el.width }));
+  };
+  const alignTop = () => {
+    const minY = Math.min(...elements.map(el => el.y));
+    return elements.map(el => ({ ...el, y: minY }));
+  };
+  const alignCenterV = () => {
+    const avgCY = elements.reduce((s, el) => s + el.y + el.height / 2, 0) / elements.length;
+    return elements.map(el => ({ ...el, y: Math.round(avgCY - el.height / 2) }));
+  };
+  const alignBottom = () => {
+    const maxB = Math.max(...elements.map(el => el.y + el.height));
+    return elements.map(el => ({ ...el, y: maxB - el.height }));
+  };
+  const sameWidth = () => {
+    const maxW = Math.max(...elements.map(el => el.width));
+    return elements.map(el => ({ ...el, width: maxW }));
+  };
+  const sameHeight = () => {
+    const maxH = Math.max(...elements.map(el => el.height));
+    return elements.map(el => ({ ...el, height: maxH }));
+  };
+  const sameBoth = () => {
+    const maxW = Math.max(...elements.map(el => el.width));
+    const maxH = Math.max(...elements.map(el => el.height));
+    return elements.map(el => ({ ...el, width: maxW, height: maxH }));
+  };
+
+  const preview = (compute: () => SlideElement[]) => () => onPreview?.(toPreview(compute()));
+  const clearPreview = () => onPreview?.(null);
+  const apply = (compute: () => SlideElement[]) => () => { onUpdateMultiple(compute()); onPreview?.(null); };
+
+  return (
+    <>
+      <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
+        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Aligner horizontalement</div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <PreviewBtn label="Gauche" onClick={apply(alignLeft)} onEnter={preview(alignLeft)} onLeave={clearPreview} />
+          <PreviewBtn label="Centre" onClick={apply(alignCenterH)} onEnter={preview(alignCenterH)} onLeave={clearPreview} />
+          <PreviewBtn label="Droite" onClick={apply(alignRight)} onEnter={preview(alignRight)} onLeave={clearPreview} />
+        </div>
+      </div>
+      <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
+        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Aligner verticalement</div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <PreviewBtn label="Haut" onClick={apply(alignTop)} onEnter={preview(alignTop)} onLeave={clearPreview} />
+          <PreviewBtn label="Centre" onClick={apply(alignCenterV)} onEnter={preview(alignCenterV)} onLeave={clearPreview} />
+          <PreviewBtn label="Bas" onClick={apply(alignBottom)} onEnter={preview(alignBottom)} onLeave={clearPreview} />
+        </div>
+      </div>
+      <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
+        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Même taille</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          <PreviewBtn label="Largeur" onClick={apply(sameWidth)} onEnter={preview(sameWidth)} onLeave={clearPreview} />
+          <PreviewBtn label="Hauteur" onClick={apply(sameHeight)} onEnter={preview(sameHeight)} onLeave={clearPreview} />
+          <PreviewBtn label="Les deux" onClick={apply(sameBoth)} onEnter={preview(sameBoth)} onLeave={clearPreview} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function PreviewBtn({ label, onClick, onEnter, onLeave }: {
+  label: string; onClick: () => void; onEnter: () => void; onLeave: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+      style={{
+        background: '#fff', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 3,
+        padding: '3px 8px', fontSize: 10, cursor: 'pointer', color: '#1a1a1a',
+      }}
+    >
+      {label}
+    </button>
   );
 }
 

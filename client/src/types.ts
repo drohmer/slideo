@@ -15,11 +15,19 @@ export interface VideoElement extends BaseElement {
   muted: boolean;
   naturalWidth?: number;
   naturalHeight?: number;
+  cropTop?: number;    // 0-50%, how much to cut from top
+  cropRight?: number;  // 0-50%
+  cropBottom?: number; // 0-50%
+  cropLeft?: number;   // 0-50%
 }
 
 export interface ImageElement extends BaseElement {
   type: 'image';
   src: string;
+  cropTop?: number;
+  cropRight?: number;
+  cropBottom?: number;
+  cropLeft?: number;
 }
 
 export interface TextElement extends BaseElement {

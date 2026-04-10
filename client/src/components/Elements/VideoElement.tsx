@@ -19,7 +19,12 @@ export function VideoEl({ element, editMode, background = '#ffffff' }: Props) {
           autoPlay={element.autoplay}
           muted={element.muted}
           playsInline
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: editMode ? 'none' : 'auto' }}
+          style={{
+            width: '100%', height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+            pointerEvents: editMode ? 'none' : 'auto',
+          }}
           controls
         />
       </div>
