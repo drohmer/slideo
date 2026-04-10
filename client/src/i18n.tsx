@@ -89,6 +89,11 @@ const translations = {
   noPresentation: { fr: 'Aucune présentation. Créez-en une pour commencer.', en: 'No presentations. Create one to get started.' },
   modifiedOn: { fr: 'Modifié le', en: 'Modified on' },
 
+  // Export/Import
+  exportZip: { fr: 'Exporter .zip', en: 'Export .zip' },
+  importZip: { fr: 'Importer .zip', en: 'Import .zip' },
+  importing: { fr: 'Import en cours...', en: 'Importing...' },
+
   // Snap
   snapOn: { fr: 'Snap activé', en: 'Snap on' },
   snapOff: { fr: 'Snap désactivé', en: 'Snap off' },

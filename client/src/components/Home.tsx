@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { PresentationSummary } from '../types';
 import { listPresentations, createPresentation, deletePresentation } from '../api';
+import { importPresentation } from '../zipExport';
 import { useI18n } from '../i18n';
 import { useTheme } from '../theme';
 
 export function Home() {
   const [presentations, setPresentations] = useState<PresentationSummary[]>([]);
+  const [importing, setImporting] = useState(false);
   const navigate = useNavigate();
   const { t, lang } = useI18n();
   const { theme } = useTheme();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     listPresentations().then(setPresentations);
@@ -26,13 +29,49 @@ export function Home() {
     setPresentations(prev => prev.filter(p => p.id !== id));
   };
 
+  const handleImport = async (file: File) => {
+    if (!file.name.endsWith('.zip')) return;
+    setImporting(true);
+    try {
+      const newId = await importPresentation(file);
+      navigate(`/edit/${newId}`);
+    } catch (err) {
+      console.error('Import failed:', err);
+      setImporting(false);
+    }
+  };
+
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '40px 20px' }}>
+    <div
+      style={{ maxWidth: 800, margin: '0 auto', padding: '40px 20px' }}
+      onDragOver={e => e.preventDefault()}
+      onDrop={e => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file) handleImport(file);
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <h1 style={{ fontSize: 28 }}>VideoSlide</h1>
-        <button onClick={handleCreate} style={btnStyle}>
-          {t('newPresentation')}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            style={{ ...btnStyle, background: 'transparent', color: '#4361ee', border: '1px solid #4361ee' }}
+          >
+            {importing ? t('importing') : t('importZip')}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".zip"
+            style={{ display: 'none' }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); }}
+          />
+          <button onClick={handleCreate} style={btnStyle}>
+            {t('newPresentation')}
+          </button>
+        </div>
       </div>
 
       {presentations.length === 0 ? (

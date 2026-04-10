@@ -6,6 +6,7 @@ import { getPresentation, savePresentation } from '../../api';
 import { useWebSocket } from '../../useWebSocket';
 import { useI18n } from '../../i18n';
 import { useTheme } from '../../theme';
+import { exportPresentation } from '../../zipExport';
 import { SlidesSidebar } from './SlidesSidebar';
 import { SlideCanvas } from './SlideCanvas';
 import { PropertiesPanel } from './PropertiesPanel';
@@ -438,6 +439,15 @@ export function Editor() {
             }}
           >
             {mode === 'light' ? '🌙' : '☀️'}
+          </button>
+          <button
+            onClick={() => exportPresentation(pres)}
+            style={{
+              background: 'transparent', border: `1px solid ${theme.border}`,
+              borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: theme.textMuted,
+            }}
+          >
+            {t('exportZip')}
           </button>
           <span
             title={isConnected ? t('connected') : t('disconnected')}
