@@ -4,14 +4,13 @@ import type { PresentationSummary } from '../types';
 import { listPresentations, createPresentation, deletePresentation } from '../api';
 import { importPresentation } from '../zipExport';
 import { useI18n } from '../i18n';
-import { useTheme } from '../theme';
+
 
 export function Home() {
   const [presentations, setPresentations] = useState<PresentationSummary[]>([]);
   const [importing, setImporting] = useState(false);
   const navigate = useNavigate();
   const { t, lang } = useI18n();
-  const { theme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -57,7 +56,7 @@ export function Home() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={importing}
-            style={{ ...btnStyle, background: 'transparent', color: '#4361ee', border: '1px solid #4361ee' }}
+            style={{ ...btnStyle, background: 'transparent', color: 'var(--accent)', border: '1px solid var(--accent)' }}
           >
             {importing ? t('importing') : t('importZip')}
           </button>
@@ -94,7 +93,7 @@ export function Home() {
               </div>
               <button
                 onClick={(e) => handleDelete(p.id, e)}
-                style={{ background: 'none', border: 'none', color: '#e94560', cursor: 'pointer', fontSize: 14, padding: '4px 8px' }}
+                style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14, padding: '4px 8px' }}
               >
                 {t('delete')}
               </button>
@@ -107,7 +106,7 @@ export function Home() {
 }
 
 const btnStyle: React.CSSProperties = {
-  background: '#4361ee',
+  background: 'var(--accent)',
   border: 'none',
   borderRadius: 6,
   padding: '10px 20px',
@@ -121,8 +120,8 @@ const cardStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  background: '#fff',
-  border: '1px solid rgba(0,0,0,0.1)',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '16px 20px',
   cursor: 'pointer',

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { getVisibleRect, type SlideElement, type VideoElement, type TextElement } from '../../types';
 import { useI18n } from '../../i18n';
-import { useTheme } from '../../theme';
 
 type PreviewPos = Array<{ id: string; x: number; y: number; width: number; height: number }>;
 
@@ -25,13 +24,12 @@ interface Props {
 export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const { t } = useI18n();
-  const { theme } = useTheme();
 
   if (collapsed) {
     return (
       <div style={{
-        width: 32, background: theme.panelBg,
-        borderLeft: `1px solid ${theme.border}`, flexShrink: 0,
+        width: 32, background: 'var(--panel-bg)',
+        borderLeft: '1px solid var(--border)', flexShrink: 0,
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         padding: '6px 0', gap: 6,
       }}>
@@ -59,7 +57,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
       }}
     >
       <span style={{
-        background: 'rgba(0,0,0,0.06)', borderRadius: 3,
+        background: 'var(--border-light)', borderRadius: 3,
         padding: '3px 8px', fontSize: 10, opacity: 0.5,
       }}>{'\u25B6'}</span>
     </div>
@@ -67,13 +65,13 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
 
   if (elements.length === 0) {
     return (
-      <div style={{ ...panelStyle, background: theme.panelBg, borderLeft: `1px solid ${theme.border}`, color: theme.text }}>
+      <div style={{ ...panelStyle, background: 'var(--panel-bg)', borderLeft: '1px solid var(--border)', color: 'var(--text)' }}>
         {collapseBtn}
         <div style={labelStyle}>{t('tools')}</div>
         {onAddText && (
           <button onClick={onAddText} style={{
-            width: '100%', background: theme.surface, border: `1px solid ${theme.border}`,
-            borderRadius: 4, padding: '6px 0', color: theme.text, fontSize: 12, cursor: 'pointer',
+            width: '100%', background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 4, padding: '6px 0', color: 'var(--text)', fontSize: 12, cursor: 'pointer',
             marginBottom: 12,
           }}>
             {t('addText')}
@@ -83,7 +81,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
           {t('dragHint')}
         </p>
         {onSlideBgChange && (
-          <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: 10, marginTop: 12 }}>
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 12 }}>
             <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('slideBg')}</div>
             <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
               <button onClick={() => onSlideBgChange('#ffffff')} style={{
@@ -99,7 +97,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
                 value={currentSlideBg || '#ffffff'}
                 onChange={e => onSlideBgChange(e.target.value)}
                 title={t('custom')}
-                style={{ width: 28, height: 28, border: `1px solid ${theme.border}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'transparent' }}
+                style={{ width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 3, padding: 0, cursor: 'pointer', background: 'transparent' }}
               />
             </div>
           </div>
@@ -111,7 +109,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
   // Multi-selection panel
   if (elements.length > 1) {
     return (
-      <div style={{ ...panelStyle, background: theme.panelBg, borderLeft: `1px solid ${theme.border}`, color: theme.text }}>
+      <div style={{ ...panelStyle, background: 'var(--panel-bg)', borderLeft: '1px solid var(--border)', color: 'var(--text)' }}>
         {collapseBtn}
         <div style={labelStyle}>{t('multiSelection')}</div>
         <div style={{ fontSize: 12, marginBottom: 16, opacity: 0.6 }}>
@@ -123,8 +121,8 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
         <button
           onClick={onDelete}
           style={{
-            marginTop: 16, width: '100%', background: 'rgba(233,69,96,0.15)', border: '1px solid #e94560',
-            borderRadius: 4, padding: '6px 0', color: '#e94560', fontSize: 12, cursor: 'pointer',
+            marginTop: 16, width: '100%', background: 'var(--danger-light)', border: '1px solid var(--danger)',
+            borderRadius: 4, padding: '6px 0', color: 'var(--danger)', fontSize: 12, cursor: 'pointer',
           }}
         >
           {t('delete')} ({elements.length})
@@ -137,13 +135,13 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
   const element = elements[0];
 
   return (
-    <div style={{ ...panelStyle, background: theme.panelBg, borderLeft: `1px solid ${theme.border}`, color: theme.text }}>
+    <div style={{ ...panelStyle, background: 'var(--panel-bg)', borderLeft: '1px solid var(--border)', color: 'var(--text)' }}>
       {collapseBtn}
       <div style={labelStyle}>{t('properties')}</div>
 
       <div style={{ marginBottom: 12 }}>
         <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 4 }}>{t('type')}</div>
-        <div style={{ fontWeight: 600, color: '#4361ee', fontSize: 13 }}>{element.type}</div>
+        <div style={{ fontWeight: 600, color: 'var(--accent)', fontSize: 13 }}>{element.type}</div>
       </div>
 
       {element.type !== 'text' && (
@@ -173,7 +171,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
       {element.type === 'text' && <TextProps element={element} onUpdate={onUpdate} activeEditor={activeEditor} />}
 
       {(element.type === 'image' || element.type === 'video') && (
-        <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginTop: 8 }}>
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 8 }}>
           <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('crop')}</div>
           <div style={{ display: 'flex', gap: 4 }}>
             <button
@@ -182,9 +180,9 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
                 else onStartCropping?.(element.id);
               }}
               style={{
-                flex: 1, background: croppingId === element.id ? '#4361ee' : '#fff',
-                color: croppingId === element.id ? '#fff' : '#1a1a1a',
-                border: '1px solid rgba(0,0,0,0.15)', borderRadius: 3,
+                flex: 1, background: croppingId === element.id ? 'var(--accent)' : 'var(--surface)',
+                color: croppingId === element.id ? 'var(--surface)' : 'var(--text)',
+                border: '1px solid var(--border)', borderRadius: 3,
                 padding: '4px 8px', fontSize: 10, cursor: 'pointer',
               }}
             >
@@ -194,8 +192,8 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
               <button
                 onClick={() => onUpdate({ ...element, cropTop: 0, cropRight: 0, cropBottom: 0, cropLeft: 0 })}
                 style={{
-                  background: '#fff', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 3,
-                  padding: '4px 8px', fontSize: 10, cursor: 'pointer', color: '#1a1a1a',
+                  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
+                  padding: '4px 8px', fontSize: 10, cursor: 'pointer', color: 'var(--text)',
                 }}
               >
                 {t('reset')}
@@ -206,7 +204,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
       )}
 
       {onReorder && (
-        <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginTop: 8 }}>
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 8 }}>
           <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('order')}</div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             <ActionBtn label={t('toFront')} onClick={() => onReorder(element.id, 'top')} />
@@ -220,8 +218,8 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
       <button
         onClick={onDelete}
         style={{
-          marginTop: 16, width: '100%', background: 'rgba(233,69,96,0.15)', border: '1px solid #e94560',
-          borderRadius: 4, padding: '6px 0', color: '#e94560', fontSize: 12, cursor: 'pointer',
+          marginTop: 16, width: '100%', background: 'var(--danger-light)', border: '1px solid var(--danger)',
+          borderRadius: 4, padding: '6px 0', color: 'var(--danger)', fontSize: 12, cursor: 'pointer',
         }}
       >
         {t('delete')}
@@ -290,7 +288,7 @@ function AlignSection({ elements, onUpdateMultiple, onPreview }: {
 
   return (
     <>
-      <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 12 }}>
         <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>{t('alignH')}</div>
         <div style={{ display: 'flex', gap: 4 }}>
           <PreviewBtn label={t('left')} onClick={apply(alignLeft)} onEnter={previewFn(alignLeft)} onLeave={clearPreview} />
@@ -298,7 +296,7 @@ function AlignSection({ elements, onUpdateMultiple, onPreview }: {
           <PreviewBtn label={t('right')} onClick={apply(alignRight)} onEnter={previewFn(alignRight)} onLeave={clearPreview} />
         </div>
       </div>
-      <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 12 }}>
         <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>{t('alignV')}</div>
         <div style={{ display: 'flex', gap: 4 }}>
           <PreviewBtn label={t('top')} onClick={apply(alignTop)} onEnter={previewFn(alignTop)} onLeave={clearPreview} />
@@ -306,7 +304,7 @@ function AlignSection({ elements, onUpdateMultiple, onPreview }: {
           <PreviewBtn label={t('bottom')} onClick={apply(alignBottom)} onEnter={previewFn(alignBottom)} onLeave={clearPreview} />
         </div>
       </div>
-      <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 12 }}>
         <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>{t('sameSize')}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           <PreviewBtn label={t('width')} onClick={apply(sameWidth)} onEnter={previewFn(sameWidth)} onLeave={clearPreview} />
@@ -327,8 +325,8 @@ function PreviewBtn({ label, onClick, onEnter, onLeave }: {
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       style={{
-        background: '#fff', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 3,
-        padding: '3px 8px', fontSize: 10, cursor: 'pointer', color: '#1a1a1a',
+        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
+        padding: '3px 8px', fontSize: 10, cursor: 'pointer', color: 'var(--text)',
       }}
     >
       {label}
@@ -341,8 +339,8 @@ function ActionBtn({ label, onClick }: { label: string; onClick: () => void }) {
     <button
       onClick={onClick}
       style={{
-        background: '#fff', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 3,
-        padding: '3px 8px', fontSize: 10, cursor: 'pointer', color: '#1a1a1a',
+        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
+        padding: '3px 8px', fontSize: 10, cursor: 'pointer', color: 'var(--text)',
       }}
     >
       {label}
@@ -353,7 +351,7 @@ function ActionBtn({ label, onClick }: { label: string; onClick: () => void }) {
 function VideoProps({ element, onUpdate }: { element: VideoElement; onUpdate: (el: SlideElement) => void }) {
   const { t } = useI18n();
   return (
-    <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginTop: 4 }}>
+    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
       <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('video')}</div>
       <Checkbox label={t('loop')} checked={element.loop} onChange={v => onUpdate({ ...element, loop: v })} />
       <Checkbox label={t('autoplay')} checked={element.autoplay} onChange={v => onUpdate({ ...element, autoplay: v })} />
@@ -365,7 +363,7 @@ function VideoProps({ element, onUpdate }: { element: VideoElement; onUpdate: (e
 function TextProps({ element, onUpdate, activeEditor }: { element: TextElement; onUpdate: (el: SlideElement) => void; activeEditor: TiptapEditor | null }) {
   const { t } = useI18n();
   return (
-    <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginTop: 4 }}>
+    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
       <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('text')}</div>
       <div style={{ marginBottom: 8 }}>
         <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('fontSize')}</div>
@@ -394,7 +392,7 @@ function TextProps({ element, onUpdate, activeEditor }: { element: TextElement; 
           style={{
             ...formatBtnStyle,
             fontWeight: 700,
-            background: activeEditor?.isActive('bold') ? '#e0e0e0' : '#fff',
+            background: activeEditor?.isActive('bold') ? 'var(--accent-light)' : 'var(--surface)',
           }}
         >
           B
@@ -407,7 +405,7 @@ function TextProps({ element, onUpdate, activeEditor }: { element: TextElement; 
           style={{
             ...formatBtnStyle,
             fontStyle: 'italic',
-            background: activeEditor?.isActive('italic') ? '#e0e0e0' : '#fff',
+            background: activeEditor?.isActive('italic') ? 'var(--accent-light)' : 'var(--surface)',
           }}
         >
           I
@@ -434,7 +432,7 @@ function Field({ label, value, onChange }: { label: string; value: number; onCha
 function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, cursor: 'pointer', fontSize: 12 }}>
-      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} style={{ accentColor: '#4361ee' }} />
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} style={{ accentColor: 'var(--accent)' }} />
       {label}
     </label>
   );
@@ -447,8 +445,8 @@ function MiniBtn({ title, onClick, children, danger }: { title: string; onClick:
       title={title}
       style={{
         width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#fff', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 3,
-        cursor: 'pointer', fontSize: 11, color: danger ? '#e94560' : '#1a1a1a',
+        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
+        cursor: 'pointer', fontSize: 11, color: danger ? 'var(--danger)' : 'var(--text)',
       }}
     >{children}</button>
   );
@@ -464,12 +462,12 @@ const labelStyle: React.CSSProperties = {
 };
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', background: '#fff', border: '1px solid rgba(0,0,0,0.15)',
-  borderRadius: 3, padding: '3px 6px', color: '#1a1a1a', fontSize: 11,
+  width: '100%', background: 'var(--surface)', border: '1px solid var(--border)',
+  borderRadius: 3, padding: '3px 6px', color: 'var(--text)', fontSize: 11,
 };
 
 const formatBtnStyle: React.CSSProperties = {
-  background: '#fff', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 3,
-  padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: '#1a1a1a',
+  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
+  padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text)',
   minWidth: 30, textAlign: 'center',
 };

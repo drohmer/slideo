@@ -24,9 +24,9 @@ export function ElementToolbar({ element, onUpdate, onDelete, onStartCropping, i
         alignItems: 'center',
         gap: 2,
         padding: '2px 4px',
-        background: 'rgba(255,255,255,0.95)',
+        background: 'var(--surface)',
         borderRadius: 4,
-        boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+        boxShadow: 'var(--shadow)',
         zIndex: 300,
         whiteSpace: 'nowrap',
       }}
@@ -57,7 +57,7 @@ function TextToolbar({ element, onUpdate, activeEditor }: {
         title={t('fontSmaller')}
         onClick={() => onUpdate({ ...element, fontSize: Math.max(8, element.fontSize - 2) })}
       />
-      <span style={{ fontSize: 10, minWidth: 20, textAlign: 'center', color: '#666' }}>
+      <span style={{ fontSize: 10, minWidth: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
         {element.fontSize}
       </span>
       <ToolBtn
@@ -86,7 +86,7 @@ function TextToolbar({ element, onUpdate, activeEditor }: {
         value={element.color}
         onChange={e => onUpdate({ ...element, color: e.target.value })}
         title={t('color')}
-        style={{ width: 20, height: 20, border: '1px solid rgba(0,0,0,0.15)', borderRadius: 3, padding: 0, cursor: 'pointer', background: 'transparent' }}
+        style={{ width: 20, height: 20, border: '1px solid var(--border)', borderRadius: 3, padding: 0, cursor: 'pointer', background: 'transparent' }}
       />
     </>
   );
@@ -116,13 +116,13 @@ function ToolBtn({ label, title, onClick, active, bold, italic }: {
       onClick={onClick}
       title={title}
       style={{
-        background: active ? '#e8ecff' : 'transparent',
+        background: active ? 'var(--accent-light)' : 'transparent',
         border: 'none',
         borderRadius: 3,
         padding: '2px 5px',
         fontSize: 11,
         cursor: 'pointer',
-        color: active ? '#4361ee' : '#333',
+        color: active ? 'var(--accent)' : 'var(--text)',
         fontWeight: bold ? 700 : 400,
         fontStyle: italic ? 'italic' : 'normal',
         lineHeight: 1.2,
@@ -134,5 +134,5 @@ function ToolBtn({ label, title, onClick, active, bold, italic }: {
 }
 
 function Sep() {
-  return <div style={{ width: 1, height: 14, background: 'rgba(0,0,0,0.12)', margin: '0 2px' }} />;
+  return <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />;
 }

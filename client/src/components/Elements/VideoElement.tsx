@@ -36,7 +36,7 @@ export function VideoEl({ element, editMode, background = '#ffffff' }: Props) {
           display: 'flex', gap: 4, alignItems: 'center',
         }}>
           {element.loop && (
-            <span style={{ background: 'rgba(67,97,238,0.8)', borderRadius: 3, padding: '1px 5px', fontSize: 9, color: 'white' }}>
+            <span style={{ background: 'var(--accent)', borderRadius: 3, padding: '1px 5px', fontSize: 9, color: 'white' }}>
               {t('loopBadge')}
             </span>
           )}

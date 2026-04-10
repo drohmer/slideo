@@ -368,15 +368,15 @@ export function SlideCanvas({
       <div style={{
         position: 'absolute', bottom: 12, right: 12, zIndex: 300,
         display: 'flex', alignItems: 'center', gap: 4,
-        background: 'rgba(255,255,255,0.9)', borderRadius: 6,
-        padding: '3px 8px', boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-        fontSize: 11, color: '#1a1a1a',
+        background: 'var(--surface)', borderRadius: 6,
+        padding: '3px 8px', boxShadow: 'var(--shadow)',
+        fontSize: 11, color: 'var(--text)',
       }}>
         <button onClick={() => setZoom(z => Math.max(MIN_ZOOM, Math.round((z - ZOOM_STEP) * 100) / 100))} style={zoomBtnStyle}>−</button>
         <span style={{ minWidth: 36, textAlign: 'center', opacity: 0.6 }}>{Math.round(zoom * 100)}%</span>
         <button onClick={() => setZoom(z => Math.min(MAX_ZOOM, Math.round((z + ZOOM_STEP) * 100) / 100))} style={zoomBtnStyle}>+</button>
         <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} style={{ ...zoomBtnStyle, opacity: zoom === 1 ? 0.3 : 1, marginLeft: 2 }}>Reset</button>
-        <div style={{ width: 1, height: 14, background: 'rgba(0,0,0,0.12)', margin: '0 2px' }} />
+        <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />
         <button
           onClick={() => setSnapEnabled(s => !s)}
           title={snapEnabled ? t('snapOn') + ' (Alt)' : t('snapOff') + ' (Alt)'}
@@ -414,7 +414,7 @@ export function SlideCanvas({
             background: slide.background, borderRadius: 4, position: 'relative',
             overflow: 'visible',
             boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-            border: isDragActive ? '2px dashed #4361ee' : '2px solid transparent',
+            border: isDragActive ? '2px dashed var(--accent)' : '2px solid transparent',
             cursor: isMarquee.current ? 'crosshair' : undefined,
           }}
         >
@@ -423,8 +423,8 @@ export function SlideCanvas({
           {isDragActive && (
             <div style={{
               position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(67,97,238,0.1)', borderRadius: 4, zIndex: 100,
-              fontSize: 16, color: '#4361ee', pointerEvents: 'none',
+              background: 'var(--accent-light)', borderRadius: 4, zIndex: 100,
+              fontSize: 16, color: 'var(--accent)', pointerEvents: 'none',
             }}>
               {t('dropFiles')}
             </div>
@@ -450,8 +450,8 @@ export function SlideCanvas({
               position: 'absolute',
               left: marquee.x, top: marquee.y,
               width: marquee.w, height: marquee.h,
-              background: 'rgba(67,97,238,0.12)',
-              border: '1px solid rgba(67,97,238,0.5)',
+              background: 'var(--accent-light)',
+              border: '1px solid var(--accent-mid)',
               borderRadius: 1,
               pointerEvents: 'none',
               zIndex: 200,
@@ -473,7 +473,7 @@ export function SlideCanvas({
                 position: 'absolute',
                 left: minX - 4, top: minY - 4,
                 width: maxX - minX + 8, height: maxY - minY + 8,
-                border: '1px dashed #4361ee',
+                border: '1px dashed var(--accent)',
                 borderRadius: 2,
                 pointerEvents: 'none',
                 zIndex: 150,
@@ -487,9 +487,9 @@ export function SlideCanvas({
               position: 'absolute',
               left: p.x, top: p.y,
               width: p.width, height: p.height,
-              border: '2px dashed rgba(220,38,38,0.7)',
+              border: '2px dashed var(--preview-border)',
               borderRadius: 2,
-              background: 'rgba(220,38,38,0.08)',
+              background: 'var(--preview-bg)',
               pointerEvents: 'none',
               zIndex: 140,
             }} />
@@ -499,13 +499,13 @@ export function SlideCanvas({
           {snapGuides.x.map((gx, i) => (
             <div key={`sg-x-${i}`} style={{
               position: 'absolute', left: gx, top: -2000, width: 1, height: 5000,
-              background: 'rgba(220,38,38,0.5)', pointerEvents: 'none', zIndex: 180,
+              background: 'var(--snap-color)', pointerEvents: 'none', zIndex: 180,
             }} />
           ))}
           {snapGuides.y.map((gy, i) => (
             <div key={`sg-y-${i}`} style={{
               position: 'absolute', top: gy, left: -2000, height: 1, width: 5000,
-              background: 'rgba(220,38,38,0.5)', pointerEvents: 'none', zIndex: 180,
+              background: 'var(--snap-color)', pointerEvents: 'none', zIndex: 180,
             }} />
           ))}
 
@@ -593,9 +593,9 @@ export function SlideCanvas({
                 onMouseLeave={() => setHoveredId(null)}
                 style={{
                   outline: (isSelected && !hasCrop)
-                    ? '2px solid #4361ee'
+                    ? '2px solid var(--accent)'
                     : (!hasCrop && hoveredId === el.id)
-                      ? '1px dashed rgba(67,97,238,0.5)'
+                      ? '1px dashed var(--accent-mid)'
                       : 'none',
                   outlineOffset: isSelected ? 0 : 1,
                   cursor: isTextEditing ? 'text' : 'grab',
@@ -732,7 +732,7 @@ function CropHandles({ element, onUpdate, zoom }: {
 
   const handleStyle = (side: 'top' | 'right' | 'bottom' | 'left'): React.CSSProperties => {
     const base: React.CSSProperties = {
-      position: 'absolute', background: 'rgba(220,38,38,0.6)', zIndex: 10,
+      position: 'absolute', background: 'var(--crop-color)', zIndex: 10,
     };
     const val = side === 'top' ? t : side === 'right' ? r : side === 'bottom' ? b : l;
     if (side === 'top' || side === 'bottom') {
@@ -766,7 +766,7 @@ function CropHandles({ element, onUpdate, zoom }: {
                 side === 'bottom' ? { top: 0, left: 0, right: 0, height: 3 } :
                 side === 'left' ? { right: 0, top: 0, bottom: 0, width: 3 } :
                 { left: 0, top: 0, bottom: 0, width: 3 }),
-            background: 'rgba(220,38,38,0.9)',
+            background: 'var(--crop-line)',
             cursor: (side === 'top' || side === 'bottom') ? 'ns-resize' : 'ew-resize',
           }} />
         </div>
@@ -784,7 +784,7 @@ function CroppedOutline({ vx, vy, vw, vh, isSelected, children }: {
     <div style={{
       position: 'absolute',
       left: vx, top: vy, width: vw, height: vh,
-      border: isSelected ? '2px solid #4361ee' : '1px dashed rgba(67,97,238,0.5)',
+      border: isSelected ? '2px solid var(--accent)' : '1px dashed var(--accent-mid)',
       pointerEvents: 'none',
       zIndex: 160,
     }}>
@@ -800,6 +800,6 @@ function CropBlocker({ style }: { style: React.CSSProperties }) {
 
 const zoomBtnStyle: React.CSSProperties = {
   background: 'none', border: 'none', cursor: 'pointer',
-  fontSize: 14, color: '#1a1a1a', padding: '2px 6px', borderRadius: 3,
+  fontSize: 14, color: 'var(--text)', padding: '2px 6px', borderRadius: 3,
   lineHeight: 1,
 };

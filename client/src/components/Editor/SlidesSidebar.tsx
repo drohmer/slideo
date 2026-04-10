@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Slide } from '../../types';
 import { useI18n } from '../../i18n';
-import { useTheme } from '../../theme';
+
 
 interface Props {
   slides: Slide[];
@@ -15,13 +15,12 @@ interface Props {
 export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete, onDuplicate }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const { t } = useI18n();
-  const { theme } = useTheme();
 
   if (collapsed) {
     return (
       <div style={{
-        width: 32, background: theme.panelBg,
-        borderRight: `1px solid ${theme.border}`, flexShrink: 0,
+        width: 32, background: 'var(--panel-bg)',
+        borderRight: '1px solid var(--border)', flexShrink: 0,
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         padding: '6px 0', gap: 3, overflowY: 'auto',
       }}>
@@ -38,7 +37,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
             style={{
               width: 22, height: 14, borderRadius: 2, cursor: 'pointer',
               background: slide.background,
-              border: i === currentIndex ? '2px solid #4361ee' : '1px solid rgba(0,0,0,0.15)',
+              border: i === currentIndex ? '2px solid var(--accent)' : '1px solid var(--border)',
             }}
           />
         ))}
@@ -47,7 +46,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
           title={t('addSlide')}
           style={{
             width: 22, height: 14, borderRadius: 2, cursor: 'pointer',
-            border: '1px dashed rgba(0,0,0,0.2)',
+            border: '1px dashed var(--border)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 10, opacity: 0.3,
           }}
@@ -58,9 +57,9 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
 
   return (
     <div style={{
-      width: 130, background: theme.panelBg,
+      width: 130, background: 'var(--panel-bg)',
       padding: 8, overflowY: 'auto',
-      borderRight: `1px solid ${theme.border}`, flexShrink: 0,
+      borderRight: '1px solid var(--border)', flexShrink: 0,
     }}>
       <div
         onClick={() => setCollapsed(true)}
@@ -68,7 +67,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
         style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4, cursor: 'pointer' }}
       >
         <span style={{
-          background: 'rgba(0,0,0,0.06)', borderRadius: 3,
+          background: 'var(--border-light)', borderRadius: 3,
           padding: '3px 8px', fontSize: 10, opacity: 0.5,
         }}>{'\u25C0'}</span>
       </div>
@@ -84,8 +83,8 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
               key={slide.id}
               onClick={() => onSelect(i)}
               style={{
-                border: i === currentIndex ? '2px solid #4361ee' : '1px solid rgba(0,0,0,0.1)',
-                background: i === currentIndex ? 'rgba(67,97,238,0.1)' : '#fff',
+                border: i === currentIndex ? '2px solid var(--accent)' : '1px solid var(--border)',
+                background: i === currentIndex ? 'var(--accent-light)' : 'var(--surface)',
                 borderRadius: 4, padding: 4, marginBottom: 6, cursor: 'pointer', position: 'relative',
               }}
             >
@@ -93,7 +92,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
                 background: slide.background, borderRadius: 2, height: 60,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <span style={{ fontSize: 10, color: '#666' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
                   {slide.elements.length > 0 ? `${slide.elements.length} ${t('nElem')}` : t('empty')}
                 </span>
               </div>
@@ -104,7 +103,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
                     <button
                       onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
                       title={`${t('duplicateSlide')} (Ctrl+D)`}
-                      style={{ background: 'none', border: 'none', color: '#4361ee', cursor: 'pointer', fontSize: 10, padding: 0 }}
+                      style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 10, padding: 0 }}
                     >
                       ⧉
                     </button>
@@ -112,7 +111,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
                   {slides.length > 1 && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onDelete(i); }}
-                      style={{ background: 'none', border: 'none', color: '#e94560', cursor: 'pointer', fontSize: 10, padding: 0 }}
+                      style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 10, padding: 0 }}
                     >
                       x
                     </button>
@@ -125,7 +124,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
           <div
             onClick={onAdd}
             style={{
-              border: '2px dashed rgba(0,0,0,0.15)', borderRadius: 4,
+              border: '2px dashed var(--border)', borderRadius: 4,
               height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', marginTop: 4,
             }}

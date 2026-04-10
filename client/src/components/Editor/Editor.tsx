@@ -15,7 +15,7 @@ export function Editor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { t, lang, setLang } = useI18n();
-  const { theme, mode, setMode } = useTheme();
+  const { mode, setMode } = useTheme();
   const [pres, setPres] = useState<Presentation | null>(null);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -31,6 +31,8 @@ export function Editor() {
   const undoStack = useRef<Presentation[]>([]);
   const redoStack = useRef<Presentation[]>([]);
   const skipHistory = useRef(false);
+  const lastUndoPush = useRef(0);
+  const UNDO_DEBOUNCE = 300; // ms — rapid changes within this window merge into one undo entry
 
   // Clipboard for elements and slides
   const clipboardElements = useRef<SlideElement[]>([]);
@@ -51,8 +53,14 @@ export function Editor() {
     setPres(prev => {
       if (!prev) return prev;
       if (!skipHistory.current) {
-        undoStack.current.push(prev);
-        if (undoStack.current.length > 50) undoStack.current.shift();
+        const now = Date.now();
+        if (now - lastUndoPush.current < UNDO_DEBOUNCE && undoStack.current.length > 0) {
+          // Merge: don't push a new entry, keep the previous snapshot
+        } else {
+          undoStack.current.push(prev);
+          if (undoStack.current.length > 50) undoStack.current.shift();
+        }
+        lastUndoPush.current = now;
         redoStack.current = [];
       }
       skipHistory.current = false;
@@ -394,15 +402,15 @@ export function Editor() {
   if (!pres) return <div style={{ padding: 40 }}>{t('loading')}</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: theme.bg, color: theme.text }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
       {/* Top bar */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '8px 16px', background: theme.topBar, borderBottom: `1px solid ${theme.border}`,
+        padding: '8px 16px', background: 'var(--top-bar)', borderBottom: '1px solid var(--border)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span
-            style={{ fontWeight: 700, cursor: 'pointer', color: theme.text }}
+            style={{ fontWeight: 700, cursor: 'pointer', color: 'var(--text)' }}
             onClick={() => navigate('/')}
           >
             VideoSlide
@@ -415,8 +423,8 @@ export function Editor() {
               sendMessage({ type: 'title:update', title });
             }}
             style={{
-              background: 'transparent', border: `1px solid ${theme.border}`,
-              borderRadius: 4, padding: '4px 8px', color: theme.text, fontSize: 13, width: 220,
+              background: 'transparent', border: '1px solid var(--border)',
+              borderRadius: 4, padding: '4px 8px', color: 'var(--text)', fontSize: 13, width: 220,
             }}
           />
         </div>
@@ -424,8 +432,8 @@ export function Editor() {
           <button
             onClick={() => setLang(lang === 'fr' ? 'en' : 'fr')}
             style={{
-              background: 'transparent', border: `1px solid ${theme.border}`,
-              borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: theme.textMuted,
+              background: 'transparent', border: '1px solid var(--border)',
+              borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--text-muted)',
             }}
           >
             {lang === 'fr' ? 'EN' : 'FR'}
@@ -434,8 +442,8 @@ export function Editor() {
             onClick={() => setMode(mode === 'light' ? 'dark' : 'light')}
             title={mode === 'light' ? t('darkMode') : t('lightMode')}
             style={{
-              background: 'transparent', border: `1px solid ${theme.border}`,
-              borderRadius: 4, padding: '3px 8px', fontSize: 13, cursor: 'pointer', color: theme.textMuted,
+              background: 'transparent', border: '1px solid var(--border)',
+              borderRadius: 4, padding: '3px 8px', fontSize: 13, cursor: 'pointer', color: 'var(--text-muted)',
             }}
           >
             {mode === 'light' ? '🌙' : '☀️'}
@@ -443,8 +451,8 @@ export function Editor() {
           <button
             onClick={() => exportPresentation(pres)}
             style={{
-              background: 'transparent', border: `1px solid ${theme.border}`,
-              borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: theme.textMuted,
+              background: 'transparent', border: '1px solid var(--border)',
+              borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--text-muted)',
             }}
           >
             {t('exportZip')}
@@ -459,8 +467,8 @@ export function Editor() {
           <button
             onClick={() => navigate(`/present/${pres.id}`)}
             style={{
-              background: '#4361ee', border: 'none', borderRadius: 4,
-              padding: '6px 16px', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              background: 'var(--accent)', border: 'none', borderRadius: 4,
+              padding: '6px 16px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer',
             }}
           >
             {t('present')}
