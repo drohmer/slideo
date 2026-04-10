@@ -1,3 +1,4 @@
+import type { Editor as TiptapEditor } from '@tiptap/react';
 import type { SlideElement, VideoElement, TextElement } from '../../types';
 
 interface Props {
@@ -5,9 +6,10 @@ interface Props {
   onUpdate: (element: SlideElement) => void;
   onUpdateMultiple: (elements: SlideElement[]) => void;
   onDelete: () => void;
+  activeEditor: TiptapEditor | null;
 }
 
-export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete }: Props) {
+export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor }: Props) {
   if (elements.length === 0) {
     return (
       <div style={panelStyle}>
@@ -158,7 +160,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
       </div>
 
       {element.type === 'video' && <VideoProps element={element} onUpdate={onUpdate} />}
-      {element.type === 'text' && <TextProps element={element} onUpdate={onUpdate} />}
+      {element.type === 'text' && <TextProps element={element} onUpdate={onUpdate} activeEditor={activeEditor} />}
 
       <button
         onClick={onDelete}
@@ -198,7 +200,7 @@ function VideoProps({ element, onUpdate }: { element: VideoElement; onUpdate: (e
   );
 }
 
-function TextProps({ element, onUpdate }: { element: TextElement; onUpdate: (el: SlideElement) => void }) {
+function TextProps({ element, onUpdate, activeEditor }: { element: TextElement; onUpdate: (el: SlideElement) => void; activeEditor: TiptapEditor | null }) {
   return (
     <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginTop: 4 }}>
       <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>Texte</div>
@@ -220,7 +222,34 @@ function TextProps({ element, onUpdate }: { element: TextElement; onUpdate: (el:
           style={{ width: '100%', height: 28, border: 'none', cursor: 'pointer', background: 'transparent' }}
         />
       </div>
-      <Checkbox label="Gras" checked={element.bold} onChange={v => onUpdate({ ...element, bold: v })} />
+      <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+        <button
+          onMouseDown={e => {
+            e.preventDefault();
+            activeEditor?.chain().focus().toggleBold().run();
+          }}
+          style={{
+            ...formatBtnStyle,
+            fontWeight: 700,
+            background: activeEditor?.isActive('bold') ? '#e0e0e0' : '#fff',
+          }}
+        >
+          B
+        </button>
+        <button
+          onMouseDown={e => {
+            e.preventDefault();
+            activeEditor?.chain().focus().toggleItalic().run();
+          }}
+          style={{
+            ...formatBtnStyle,
+            fontStyle: 'italic',
+            background: activeEditor?.isActive('italic') ? '#e0e0e0' : '#fff',
+          }}
+        >
+          I
+        </button>
+      </div>
     </div>
   );
 }
@@ -260,4 +289,10 @@ const labelStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   width: '100%', background: '#fff', border: '1px solid rgba(0,0,0,0.15)',
   borderRadius: 3, padding: '3px 6px', color: '#1a1a1a', fontSize: 11,
+};
+
+const formatBtnStyle: React.CSSProperties = {
+  background: '#fff', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 3,
+  padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: '#1a1a1a',
+  minWidth: 30, textAlign: 'center',
 };

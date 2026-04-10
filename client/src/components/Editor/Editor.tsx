@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Presentation, SlideElement, WsMessage } from '../../types';
+import type { Editor as TiptapEditor } from '@tiptap/react';
 import { getPresentation, savePresentation } from '../../api';
 import { useWebSocket } from '../../useWebSocket';
 import { SlidesSidebar } from './SlidesSidebar';
@@ -13,6 +14,9 @@ export function Editor() {
   const [pres, setPres] = useState<Presentation | null>(null);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [activeEditor, setActiveEditor] = useState<TiptapEditor | null>(null);
+  const [, setEditorTick] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -97,6 +101,18 @@ export function Editor() {
     }
   }, [applyRemote]);
 
+  // Re-render PropertiesPanel when editor selection/formatting changes
+  useEffect(() => {
+    if (!activeEditor) return;
+    const onTransaction = () => setEditorTick(t => t + 1);
+    activeEditor.on('selectionUpdate', onTransaction);
+    activeEditor.on('transaction', onTransaction);
+    return () => {
+      activeEditor.off('selectionUpdate', onTransaction);
+      activeEditor.off('transaction', onTransaction);
+    };
+  }, [activeEditor]);
+
   const { sendMessage, sendThrottled, isConnected } = useWebSocket(pres?.id, handleRemoteMessage);
 
   const updateCurrentSlideElements = useCallback((elements: SlideElement[]) => {
@@ -120,6 +136,7 @@ export function Editor() {
   const handleSelectElement = useCallback((id: string | null, shiftKey?: boolean) => {
     if (id === null) {
       setSelectedIds(new Set());
+      setEditingId(null);
     } else if (shiftKey) {
       setSelectedIds(prev => {
         const next = new Set(prev);
@@ -127,8 +144,11 @@ export function Editor() {
         else next.add(id);
         return next;
       });
+      setEditingId(null);
     } else {
       setSelectedIds(new Set([id]));
+      // Don't clear editingId if we're clicking the same element that's being edited
+      setEditingId(prev => prev === id ? prev : null);
     }
   }, []);
 
@@ -208,6 +228,26 @@ export function Editor() {
     }
   }, [currentSlideIndex, pres, selectedIds, updatePres, sendThrottled]);
 
+  // Keyboard shortcuts (Delete, Escape) — not while editing text or focused on an input
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (editingId) return;
+      const tag = (document.activeElement as HTMLElement)?.tagName;
+      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || (document.activeElement as HTMLElement)?.isContentEditable;
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0 && !isInput) {
+        e.preventDefault();
+        deleteSelected();
+      }
+      if (e.key === 'Escape' && selectedIds.size > 0) {
+        setSelectedIds(new Set());
+        setEditingId(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedIds, editingId, deleteSelected]);
+
   if (!pres) return <div style={{ padding: 40 }}>Chargement...</div>;
 
   return (
@@ -283,11 +323,15 @@ export function Editor() {
           slide={pres.slides[currentSlideIndex]}
           presentationId={pres.id}
           selectedIds={selectedIds}
+          editingId={editingId}
           onSelectElement={handleSelectElement}
           onSelectMultiple={handleSelectMultiple}
           onUpdateElements={updateCurrentSlideElements}
           onUpdateElement={updateElement}
           onMoveGroup={moveGroup}
+          onStartEditing={setEditingId}
+          onStopEditing={() => setEditingId(null)}
+          onEditorReady={setActiveEditor}
         />
 
         <PropertiesPanel
@@ -295,6 +339,7 @@ export function Editor() {
           onUpdate={updateElement}
           onUpdateMultiple={updateElements}
           onDelete={deleteSelected}
+          activeEditor={activeEditor}
         />
       </div>
     </div>

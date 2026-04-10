@@ -1,72 +1,161 @@
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import type { Editor as TiptapEditor } from '@tiptap/react';
 import type { TextElement, SlideElement } from '../../types';
 
 interface Props {
   element: TextElement;
   onUpdate?: (element: SlideElement) => void;
-  editMode?: boolean;
+  editing?: boolean;
+  onStopEditing?: () => void;
+  onEditorReady?: (editor: TiptapEditor | null) => void;
 }
 
-export function TextEl({ element, onUpdate, editMode }: Props) {
-  const [editing, setEditing] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+export function TextEl({ element, onUpdate, editing, onStopEditing, onEditorReady }: Props) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const elementRef = useRef(element);
+  elementRef.current = element;
 
+  const measureContent = useCallback(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return null;
+    // Temporarily shrink the wrapper to fit-content to measure intrinsic text size
+    const prevW = wrapper.style.width;
+    const prevH = wrapper.style.height;
+    wrapper.style.width = 'fit-content';
+    wrapper.style.height = 'fit-content';
+    const width = Math.max(20, Math.ceil(wrapper.scrollWidth) + 4);
+    const height = Math.max(20, Math.ceil(wrapper.scrollHeight) + 4);
+    wrapper.style.width = prevW;
+    wrapper.style.height = prevH;
+    return { width, height };
+  }, []);
+
+  const commitContent = useCallback((editor: TiptapEditor) => {
+    if (!onUpdate) return;
+    const content = editor.getHTML();
+    const size = measureContent();
+    if (!size) return;
+    onUpdate({ ...elementRef.current, content, width: size.width, height: size.height });
+  }, [onUpdate, measureContent]);
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: false,
+        blockquote: false,
+        codeBlock: false,
+        horizontalRule: false,
+        bulletList: false,
+        orderedList: false,
+        listItem: false,
+      }),
+    ],
+    content: element.content,
+    editable: !!editing,
+    onUpdate: ({ editor }) => {
+      if (!onUpdate) return;
+      const size = measureContent();
+      if (!size) return;
+      const cur = elementRef.current;
+      const html = editor.getHTML();
+      if (size.width !== cur.width || size.height !== cur.height || html !== cur.content) {
+        onUpdate({ ...cur, content: html, width: size.width, height: size.height });
+      }
+    },
+    onBlur: ({ editor }) => {
+      commitContent(editor);
+    },
+  });
+
+  // Toggle editable when editing prop changes
   useEffect(() => {
-    if (editing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
+    if (!editor) return;
+    editor.setEditable(!!editing);
+    if (editing) {
+      // Focus and place cursor at end
+      setTimeout(() => {
+        editor.commands.focus('end');
+      }, 0);
     }
-  }, [editing]);
+  }, [editing, editor]);
 
-  const style: React.CSSProperties = {
-    width: '100%', height: '100%',
-    fontSize: element.fontSize, color: element.color,
-    fontWeight: element.bold ? 700 : 400,
-    display: 'flex', alignItems: 'center',
-    wordBreak: 'break-word', lineHeight: 1.3,
-  };
+  // Sync content from outside when not editing
+  useEffect(() => {
+    if (!editor || editing) return;
+    const currentHTML = editor.getHTML();
+    if (currentHTML !== element.content) {
+      editor.commands.setContent(element.content, { emitUpdate: false });
+    }
+  }, [element.content, editing, editor]);
 
-  const cornerStyle: React.CSSProperties = {
-    position: 'absolute',
-    width: 14, height: 14,
-    borderColor: 'rgba(220,38,38,0.7)',
-    borderStyle: 'solid',
-    borderWidth: 0,
-    transition: 'opacity 0.2s',
-    opacity: hovered ? 1 : 0,
-    pointerEvents: 'none',
-  };
+  // Expose editor instance to parent
+  useEffect(() => {
+    if (!editor) return;
+    if (editing) {
+      onEditorReady?.(editor);
+    } else {
+      onEditorReady?.(null);
+    }
+  }, [editing, editor, onEditorReady]);
 
-  if (editing && editMode && onUpdate) {
-    return (
-      <textarea
-        ref={inputRef}
-        value={element.content}
-        onChange={e => onUpdate({ ...element, content: e.target.value })}
-        onBlur={() => setEditing(false)}
-        onKeyDown={e => { if (e.key === 'Escape') setEditing(false); }}
-        style={{
-          ...style,
-          background: 'transparent', border: '1px dashed rgba(67,97,238,0.5)',
-          outline: 'none', resize: 'none', padding: 4, fontFamily: 'inherit',
-        }}
-      />
-    );
-  }
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => onEditorReady?.(null);
+  }, [onEditorReady]);
+
+  // Handle keyboard events: Escape to exit editing, stopPropagation to prevent canvas shortcuts
+  useEffect(() => {
+    if (!editing || !editor) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        commitContent(editor);
+        editor.commands.blur();
+        onStopEditing?.();
+      }
+    };
+    const dom = editor.view.dom;
+    dom.addEventListener('keydown', handleKeyDown);
+    return () => dom.removeEventListener('keydown', handleKeyDown);
+  }, [editing, editor, commitContent, onStopEditing]);
 
   return (
     <div
-      style={{ ...style, position: 'relative' }}
-      onDoubleClick={() => editMode && setEditing(true)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      ref={wrapperRef}
+      onMouseDown={(e) => {
+        if (editing) {
+          e.stopPropagation();
+          // During drag-select, prevent parent elements from intercepting mouse events
+          const stop = (ev: MouseEvent) => ev.stopPropagation();
+          const wrapper = wrapperRef.current;
+          const rnd = wrapper?.parentElement;
+          if (rnd) {
+            rnd.addEventListener('mousemove', stop, true);
+            rnd.addEventListener('mouseup', stop, true);
+            const cleanup = () => {
+              rnd.removeEventListener('mousemove', stop, true);
+              rnd.removeEventListener('mouseup', stop, true);
+              document.removeEventListener('mouseup', cleanup);
+            };
+            document.addEventListener('mouseup', cleanup);
+          }
+        }
+      }}
+      style={{
+        fontSize: element.fontSize,
+        color: element.color,
+        lineHeight: 1.3,
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        cursor: editing ? 'text' : 'inherit',
+      }}
     >
-      {element.content}
-      <div style={{ ...cornerStyle, top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3 }} />
-      <div style={{ ...cornerStyle, top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3 }} />
-      <div style={{ ...cornerStyle, bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3 }} />
-      <div style={{ ...cornerStyle, bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3 }} />
+      <EditorContent editor={editor} style={{ width: '100%' }} />
     </div>
   );
 }

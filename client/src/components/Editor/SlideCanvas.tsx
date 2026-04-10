@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Rnd } from 'react-rnd';
 import type { Slide, SlideElement, VideoElement, ImageElement } from '../../types';
+import type { Editor as TiptapEditor } from '@tiptap/react';
 import { uploadFile } from '../../api';
 import { VideoEl } from '../Elements/VideoElement';
 import { ImageEl } from '../Elements/ImageElement';
@@ -11,11 +12,15 @@ interface Props {
   slide: Slide;
   presentationId: string;
   selectedIds: Set<string>;
+  editingId: string | null;
   onSelectElement: (id: string | null, shiftKey?: boolean) => void;
   onSelectMultiple: (ids: string[]) => void;
   onUpdateElements: (elements: SlideElement[]) => void;
   onUpdateElement: (element: SlideElement) => void;
   onMoveGroup: (draggedId: string, dx: number, dy: number) => void;
+  onStartEditing: (id: string) => void;
+  onStopEditing: () => void;
+  onEditorReady: (editor: TiptapEditor | null) => void;
 }
 
 const CANVAS_WIDTH = 960;
@@ -47,7 +52,7 @@ function rectsIntersect(
 }
 
 export function SlideCanvas({
-  slide, presentationId, selectedIds, onSelectElement, onSelectMultiple, onUpdateElements, onUpdateElement, onMoveGroup,
+  slide, presentationId, selectedIds, editingId, onSelectElement, onSelectMultiple, onUpdateElements, onUpdateElement, onMoveGroup, onStartEditing, onStopEditing, onEditorReady,
 }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -82,9 +87,11 @@ export function SlideCanvas({
   }, []);
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [liveTextScale, setLiveTextScale] = useState<{ id: string; scale: number } | null>(null);
 
   // Marquee selection state
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const marqueeRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const isMarquee = useRef(false);
   const marqueeStart = useRef({ x: 0, y: 0 });
 
@@ -129,9 +136,38 @@ export function SlideCanvas({
     const pos = screenToCanvas(e.clientX, e.clientY);
     isMarquee.current = true;
     marqueeStart.current = pos;
-    setMarquee({ x: pos.x, y: pos.y, w: 0, h: 0 });
+    const m = { x: pos.x, y: pos.y, w: 0, h: 0 };
+    marqueeRef.current = m;
+    setMarquee(m);
     onSelectElement(null); // deselect all on marquee start
   }, [screenToCanvas, onSelectElement]);
+
+  const handleMarqueeMouseMove = useCallback((e: React.MouseEvent) => {
+    const pos = screenToCanvas(e.clientX, e.clientY);
+    const sx = marqueeStart.current.x;
+    const sy = marqueeStart.current.y;
+    const m = {
+      x: Math.min(sx, pos.x),
+      y: Math.min(sy, pos.y),
+      w: Math.abs(pos.x - sx),
+      h: Math.abs(pos.y - sy),
+    };
+    marqueeRef.current = m;
+    setMarquee(m);
+    // Live-select elements that intersect the marquee
+    if (m.w > 5 && m.h > 5) {
+      const hits = slide.elements.filter(el =>
+        rectsIntersect(m, { x: el.x, y: el.y, w: el.width, h: el.height })
+      );
+      onSelectMultiple(hits.map(el => el.id));
+    }
+  }, [screenToCanvas, slide.elements, onSelectMultiple]);
+
+  const handleMarqueeMouseUp = useCallback(() => {
+    isMarquee.current = false;
+    marqueeRef.current = null;
+    setMarquee(null);
+  }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning.current) {
@@ -141,37 +177,14 @@ export function SlideCanvas({
       });
       return;
     }
-    if (isMarquee.current) {
-      const pos = screenToCanvas(e.clientX, e.clientY);
-      const sx = marqueeStart.current.x;
-      const sy = marqueeStart.current.y;
-      setMarquee({
-        x: Math.min(sx, pos.x),
-        y: Math.min(sy, pos.y),
-        w: Math.abs(pos.x - sx),
-        h: Math.abs(pos.y - sy),
-      });
-      return;
-    }
-  }, [screenToCanvas]);
+  }, []);
 
   const handleMouseUp = useCallback(() => {
     if (isPanning.current) {
       isPanning.current = false;
       return;
     }
-    if (isMarquee.current && marquee && marquee.w > 5 && marquee.h > 5) {
-      // Find all elements that intersect the marquee
-      const hits = slide.elements.filter(el =>
-        rectsIntersect(marquee, { x: el.x, y: el.y, w: el.width, h: el.height })
-      );
-      if (hits.length > 0) {
-        onSelectMultiple(hits.map(el => el.id));
-      }
-    }
-    isMarquee.current = false;
-    setMarquee(null);
-  }, [marquee, slide.elements, onSelectMultiple]);
+  }, []);
 
   const onDrop = useCallback(async (files: File[]) => {
     const newElements: SlideElement[] = [...slide.elements];
@@ -221,9 +234,22 @@ export function SlideCanvas({
   const renderElement = (el: SlideElement) => {
     const isSelected = selectedIds.has(el.id);
     switch (el.type) {
-      case 'video': return <VideoEl element={el} editMode background={slide.background} selected={isSelected} hovered={hoveredId === el.id} />;
+      case 'video': return <VideoEl element={el} editMode background={slide.background} />;
       case 'image': return <ImageEl element={el} />;
-      case 'text': return <TextEl element={el} onUpdate={onUpdateElement} editMode />;
+      case 'text': {
+        const scaleOverride = liveTextScale?.id === el.id ? liveTextScale.scale : undefined;
+        const displayEl = scaleOverride ? { ...el, fontSize: Math.max(8, Math.round(el.fontSize * scaleOverride)) } : el;
+        const isEditing = editingId === el.id;
+        return (
+          <TextEl
+            element={displayEl}
+            onUpdate={onUpdateElement}
+            editing={isEditing}
+            onStopEditing={onStopEditing}
+            onEditorReady={onEditorReady}
+          />
+        );
+      }
     }
   };
 
@@ -295,6 +321,15 @@ export function SlideCanvas({
             </div>
           )}
 
+          {/* Marquee overlay — captures all mouse events above Rnd elements */}
+          {marquee && (
+            <div
+              style={{ position: 'absolute', inset: 0, zIndex: 199, cursor: 'crosshair' }}
+              onMouseMove={handleMarqueeMouseMove}
+              onMouseUp={handleMarqueeMouseUp}
+            />
+          )}
+
           {/* Marquee selection rectangle */}
           {marquee && marquee.w > 2 && marquee.h > 2 && (
             <div style={{
@@ -311,6 +346,7 @@ export function SlideCanvas({
 
           {slide.elements.map(el => {
             const ar = getVideoAR(el);
+            const isTextEditing = el.type === 'text' && editingId === el.id;
 
             return (
               <Rnd
@@ -319,6 +355,8 @@ export function SlideCanvas({
                 size={{ width: el.width, height: el.height }}
                 bounds="parent"
                 scale={zoom}
+                disableDragging={isTextEditing}
+                enableResizing={!isTextEditing}
                 lockAspectRatio={el.type === 'video' ? (ar || true) : (el.type === 'image')}
                 onDragStart={() => {
                   dragStartRef.current = { x: el.x, y: el.y };
@@ -332,24 +370,56 @@ export function SlideCanvas({
                   }
                   dragStartRef.current = null;
                 }}
+                onResize={el.type === 'text' ? (_e, _dir, ref) => {
+                  setLiveTextScale({ id: el.id, scale: parseInt(ref.style.width) / el.width });
+                } : undefined}
                 onResizeStop={(_e, _dir, ref, _delta, pos) => {
-                  onUpdateElement({
-                    ...el,
-                    width: parseInt(ref.style.width),
-                    height: parseInt(ref.style.height),
-                    x: pos.x,
-                    y: pos.y,
-                  });
+                  const newWidth = parseInt(ref.style.width);
+                  const newHeight = parseInt(ref.style.height);
+                  if (el.type === 'text') {
+                    setLiveTextScale(null);
+                    const scale = newWidth / el.width;
+                    onUpdateElement({
+                      ...el,
+                      fontSize: Math.max(8, Math.round(el.fontSize * scale)),
+                      width: newWidth,
+                      height: newHeight,
+                      x: pos.x,
+                      y: pos.y,
+                    });
+                  } else {
+                    onUpdateElement({
+                      ...el,
+                      width: newWidth,
+                      height: newHeight,
+                      x: pos.x,
+                      y: pos.y,
+                    });
+                  }
                 }}
                 onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
-                  onSelectElement(el.id, e.shiftKey);
+                  if (!isTextEditing) {
+                    onSelectElement(el.id, e.shiftKey);
+                  }
+                }}
+                onDoubleClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  if (el.type === 'text') {
+                    onSelectElement(el.id);
+                    onStartEditing(el.id);
+                  }
                 }}
                 onMouseEnter={() => setHoveredId(el.id)}
                 onMouseLeave={() => setHoveredId(null)}
                 style={{
-                  outline: el.type !== 'video' && selectedIds.has(el.id) ? '2px solid #4361ee' : 'none',
-                  cursor: 'move',
+                  outline: selectedIds.has(el.id)
+                    ? '2px solid #4361ee'
+                    : hoveredId === el.id
+                      ? '1px dashed rgba(67,97,238,0.5)'
+                      : 'none',
+                  outlineOffset: selectedIds.has(el.id) ? 0 : 1,
+                  cursor: isTextEditing ? 'text' : 'move',
                 }}
               >
                 {renderElement(el)}
