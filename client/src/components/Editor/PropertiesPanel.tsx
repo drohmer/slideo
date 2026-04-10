@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { getVisibleRect, type SlideElement, type VideoElement, type TextElement } from '../../types';
 import { useI18n } from '../../i18n';
@@ -20,9 +20,10 @@ interface Props {
   onSlideBgChange?: (color: string) => void;
   currentSlideBg?: string;
   onToggleBoldItalic?: (key: string) => void;
+  videoRefs?: React.MutableRefObject<Map<string, HTMLVideoElement>>;
 }
 
-export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg, onToggleBoldItalic }: Props) {
+export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg, onToggleBoldItalic, videoRefs }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const { t } = useI18n();
 
@@ -168,7 +169,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
         </div>
       </div>
 
-      {element.type === 'video' && <VideoProps element={element} onUpdate={onUpdate} />}
+      {element.type === 'video' && <VideoProps element={element} onUpdate={onUpdate} videoRefs={videoRefs} />}
       {element.type === 'text' && <TextProps element={element} onUpdate={onUpdate} activeEditor={activeEditor} onToggleBoldItalic={onToggleBoldItalic} />}
 
       {(element.type === 'image' || element.type === 'video') && (
@@ -349,11 +350,103 @@ function ActionBtn({ label, onClick }: { label: string; onClick: () => void }) {
   );
 }
 
-function VideoProps({ element, onUpdate }: { element: VideoElement; onUpdate: (el: SlideElement) => void }) {
+function formatTime(s: number): string {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+function VideoProps({ element, onUpdate, videoRefs }: { element: VideoElement; onUpdate: (el: SlideElement) => void; videoRefs?: React.MutableRefObject<Map<string, HTMLVideoElement>> }) {
   const { t } = useI18n();
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const rafRef = useRef<number>(0);
+  const seekingRef = useRef(false);
+
+  const getVideo = useCallback(() => videoRefs?.current.get(element.id) ?? null, [videoRefs, element.id]);
+
+  // Sync playback state from video element
+  useEffect(() => {
+    const video = getVideo();
+    if (!video) return;
+
+    setDuration(video.duration || 0);
+    setPlaying(!video.paused);
+    setCurrentTime(video.currentTime);
+
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    const onMeta = () => setDuration(video.duration || 0);
+
+    video.addEventListener('play', onPlay);
+    video.addEventListener('pause', onPause);
+    video.addEventListener('loadedmetadata', onMeta);
+
+    const tick = () => {
+      if (!seekingRef.current) setCurrentTime(video.currentTime);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      video.removeEventListener('play', onPlay);
+      video.removeEventListener('pause', onPause);
+      video.removeEventListener('loadedmetadata', onMeta);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [getVideo]);
+
+  const togglePlay = () => {
+    const video = getVideo();
+    if (!video) return;
+    if (video.paused) video.play();
+    else video.pause();
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const video = getVideo();
+    if (!video) return;
+    const t = Number(e.target.value);
+    video.currentTime = t;
+    setCurrentTime(t);
+  };
+
   return (
     <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
       <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('video')}</div>
+
+      {duration > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <button
+              onClick={togglePlay}
+              style={{
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
+                width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', fontSize: 10, color: 'var(--text)', flexShrink: 0,
+              }}
+            >
+              {playing ? '\u23F8' : '\u25B6'}
+            </button>
+            <span style={{ fontSize: 9, opacity: 0.6, whiteSpace: 'nowrap' }}>
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={duration}
+            step={0.1}
+            value={currentTime}
+            onChange={handleSeek}
+            onPointerDown={() => { seekingRef.current = true; }}
+            onPointerUp={() => { seekingRef.current = false; }}
+            style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+          />
+        </div>
+      )}
+
       <Checkbox label={t('loop')} checked={element.loop} onChange={v => onUpdate({ ...element, loop: v })} />
       <Checkbox label={t('autoplay')} checked={element.autoplay} onChange={v => onUpdate({ ...element, autoplay: v })} />
       <Checkbox label={t('muted')} checked={element.muted} onChange={v => onUpdate({ ...element, muted: v })} />

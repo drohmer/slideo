@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Slide } from '../../types';
+import type { Slide, SlideElement } from '../../types';
 import { useI18n } from '../../i18n';
 
 
@@ -88,14 +88,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
                 borderRadius: 4, padding: 4, marginBottom: 6, cursor: 'pointer', position: 'relative',
               }}
             >
-              <div style={{
-                background: slide.background, borderRadius: 2, height: 60,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                  {slide.elements.length > 0 ? `${slide.elements.length} ${t('nElem')}` : t('empty')}
-                </span>
-              </div>
+              <SlideThumbnail slide={slide} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 3 }}>
                 <span style={{ fontSize: 9, opacity: 0.6 }}>{i + 1}</span>
                 <div style={{ display: 'flex', gap: 4 }}>
@@ -133,6 +126,85 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+const THUMB_W = 110;
+const THUMB_H = 62;
+const CANVAS_W = 960;
+const CANVAS_H = 540;
+const THUMB_SCALE = THUMB_W / CANVAS_W;
+
+function SlideThumbnail({ slide }: { slide: Slide }) {
+  return (
+    <div style={{
+      width: THUMB_W, height: THUMB_H, borderRadius: 2,
+      overflow: 'hidden', position: 'relative', background: slide.background,
+    }}>
+      <div style={{
+        width: CANVAS_W, height: CANVAS_H,
+        transform: `scale(${THUMB_SCALE})`,
+        transformOrigin: 'top left',
+        position: 'absolute', top: 0, left: 0,
+      }}>
+        {slide.elements.map(el => (
+          <ThumbnailElement key={el.id} element={el} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ThumbnailElement({ element }: { element: SlideElement }) {
+  const cropTop = (element.type === 'video' || element.type === 'image') ? ((element as any).cropTop ?? 0) : 0;
+  const cropRight = (element.type === 'video' || element.type === 'image') ? ((element as any).cropRight ?? 0) : 0;
+  const cropBottom = (element.type === 'video' || element.type === 'image') ? ((element as any).cropBottom ?? 0) : 0;
+  const cropLeft = (element.type === 'video' || element.type === 'image') ? ((element as any).cropLeft ?? 0) : 0;
+  const hasCrop = cropTop > 0 || cropRight > 0 || cropBottom > 0 || cropLeft > 0;
+
+  const style: React.CSSProperties = {
+    position: 'absolute',
+    left: element.x, top: element.y,
+    width: element.width, height: element.height,
+    overflow: 'hidden',
+    ...(hasCrop && { clipPath: `inset(${cropTop}% ${cropRight}% ${cropBottom}% ${cropLeft}%)` }),
+  };
+
+  if (element.type === 'video') {
+    return (
+      <div style={style}>
+        <video
+          src={element.src}
+          muted
+          preload="metadata"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
+      </div>
+    );
+  }
+
+  if (element.type === 'image') {
+    return (
+      <div style={style}>
+        <img
+          src={element.src}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
+      </div>
+    );
+  }
+
+  // text
+  return (
+    <div style={{
+      ...style,
+      fontSize: element.fontSize,
+      color: element.color,
+      lineHeight: 1.3,
+      overflow: 'hidden',
+    }}>
+      <div dangerouslySetInnerHTML={{ __html: element.content }} />
     </div>
   );
 }

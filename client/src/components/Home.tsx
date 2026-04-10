@@ -51,7 +51,10 @@ export function Home() {
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28 }}>VideoSlide</h1>
+        <div>
+          <h1 style={{ fontSize: 28, margin: 0 }}>Slideo</h1>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary, #888)' }}>Video-first presentations</p>
+        </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={() => fileInputRef.current?.click()}

@@ -30,6 +30,7 @@ interface Props {
   onDeleteSelected: () => void;
   activeEditor: TiptapEditor | null;
   onToggleBoldItalic: (key: string) => void;
+  videoRefs: React.MutableRefObject<Map<string, HTMLVideoElement>>;
 }
 
 const CANVAS_WIDTH = 960;
@@ -74,7 +75,7 @@ function rectsIntersect(
 }
 
 export function SlideCanvas({
-  slide, presentationId, selectedIds, editingId, onSelectElement, onSelectMultiple, onUpdateElements, onUpdateElement, onMoveGroup, onStartEditing, onStopEditing, onEditorReady, previewPositions, croppingId, onStartCropping, onCommitCrop, onDeleteSelected, activeEditor, onToggleBoldItalic,
+  slide, presentationId, selectedIds, editingId, onSelectElement, onSelectMultiple, onUpdateElements, onUpdateElement, onMoveGroup, onStartEditing, onStopEditing, onEditorReady, previewPositions, croppingId, onStartCropping, onCommitCrop, onDeleteSelected, activeEditor, onToggleBoldItalic, videoRefs,
 }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -325,7 +326,7 @@ export function SlideCanvas({
   const renderElement = (el: SlideElement) => {
     const isSelected = selectedIds.has(el.id);
     switch (el.type) {
-      case 'video': return <VideoEl element={el} editMode background={slide.background} />;
+      case 'video': return <VideoEl element={el} editMode background={slide.background} videoRefs={videoRefs} />;
       case 'image': return <ImageEl element={el} />;
       case 'text': {
         const scaleOverride = liveTextScale?.id === el.id ? liveTextScale.scale : undefined;

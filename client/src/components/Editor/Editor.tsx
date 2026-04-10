@@ -25,6 +25,7 @@ export function Editor() {
   const [previewPositions, setPreviewPositions] = useState<Array<{ id: string; x: number; y: number; width: number; height: number }> | null>(null);
   const [croppingId, setCroppingId] = useState<string | null>(null);
   const commitCropRef = useRef<() => void>(() => {});
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // Undo/Redo history
@@ -446,7 +447,7 @@ export function Editor() {
             style={{ fontWeight: 700, cursor: 'pointer', color: 'var(--text)' }}
             onClick={() => navigate('/')}
           >
-            VideoSlide
+            Slideo
           </span>
           <input
             value={pres.title}
@@ -552,6 +553,7 @@ export function Editor() {
           onDeleteSelected={deleteSelected}
           activeEditor={activeEditor}
           onToggleBoldItalic={(key: string) => toggleBoldItalicRef.current(key)}
+          videoRefs={videoRefs}
         />
 
         <PropertiesPanel
@@ -574,6 +576,7 @@ export function Editor() {
             }));
           }}
           onToggleBoldItalic={(key: string) => toggleBoldItalicRef.current(key)}
+          videoRefs={videoRefs}
         />
       </div>
     </div>

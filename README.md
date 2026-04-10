@@ -1,26 +1,42 @@
-# VideoSlide
+# Slideo
 
 Outil de presentation web centre sur la video. Concu pour projeter des videos comparatives cote a cote, en boucle, lors de reunions ou conferences.
 
-Google Slides gere mal les videos (pas d'auto-play, pas de boucle, hebergement impose). VideoSlide resout ca.
+Google Slides gere mal les videos (pas d'auto-play, pas de boucle, hebergement impose). Slideo resout ca.
 
 ## Fonctionnalites
 
-- Editeur drag & drop avec canvas 16:9
-- Elements video, image et texte
-- Videos en boucle avec auto-play et `objectFit: cover`
-- Redimensionnement avec preservation du ratio natif de la video
+**Editeur**
+- Canvas 16:9 avec drag & drop d'elements (video, image, texte)
+- Videos en boucle avec auto-play
+- Editeur de texte riche (TipTap) : gras, italique, taille, couleur
+- Crop interactif sur les videos et images
+- Snap magnetique sur grilles, bords et centres d'elements (Alt pour toggle)
 - Multi-selection (Shift+clic, rectangle de selection)
-- Alignement, distribution, redimensionnement groupe
-- Zoom (Ctrl+molette) et panning (Ctrl+drag)
-- Mode presentation plein ecran avec navigation clavier
+- Alignement, distribution, egalisation de taille entre elements
+- Reordonnancement z-index (avant, arriere, monter, descendre)
+- Zoom (Ctrl+molette, 0.25x-3x) et panning (Ctrl+drag)
+- Undo/Redo (Ctrl+Z / Ctrl+Y) avec historique debounce
+- Copier/Coller elements (Ctrl+C / Ctrl+V), duplication de slides (Ctrl+D)
+- Drag & drop de fichiers directement sur le canvas
+
+**Presentation**
+- Mode plein ecran avec navigation clavier (fleches, Entree)
 - Synchronisation temps reel entre clients via WebSocket
+
+**Fichiers & Donnees**
 - Auto-save (debounce 1s)
+- Export/import de presentations en `.zip` (JSON + medias)
 - Stockage JSON + filesystem (zero dependance BDD)
+- Formats supportes : MP4, WebM, MKV, MOV, AVI + formats image
+
+**Interface**
+- Theme clair/sombre (CSS variables)
+- Internationalisation FR/EN
 
 ## Stack
 
-- **Frontend** : React 18, TypeScript, Vite
+- **Frontend** : React 18, TypeScript, Vite, TipTap, JSZip
 - **Backend** : Node.js, Express, Multer, ws
 - **Pas de BDD** : un fichier `.json` par presentation
 
@@ -52,11 +68,15 @@ Ouvrir http://localhost:5173
 client/           Frontend React + Vite
   src/
     components/
-      Editor/     Editeur (canvas, sidebar, panneau proprietes)
+      Home/       Liste des presentations, import zip
+      Editor/     Canvas, sidebar, panneau proprietes, crop, snap
       Presenter/  Mode presentation plein ecran
-      Elements/   Composants video, image, texte
+      Elements/   Composants video, image, texte (TipTap)
     api.ts        Client API REST
     useWebSocket.ts  Hook WebSocket temps reel
+    i18n.tsx      Traductions FR/EN
+    theme.tsx     Gestion theme clair/sombre
+    zipExport.ts  Export/import zip
     types.ts      Types TypeScript
 
 server/           Backend Express

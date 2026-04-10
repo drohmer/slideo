@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { VideoElement } from '../../types';
 import { useI18n } from '../../i18n';
 
@@ -5,10 +6,20 @@ interface Props {
   element: VideoElement;
   editMode?: boolean;
   background?: string;
+  videoRefs?: React.MutableRefObject<Map<string, HTMLVideoElement>>;
 }
 
-export function VideoEl({ element, editMode, background = '#ffffff' }: Props) {
+export function VideoEl({ element, editMode, background = '#ffffff', videoRefs }: Props) {
   const { t } = useI18n();
+  const localRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const el = localRef.current;
+    if (!el || !videoRefs) return;
+    videoRefs.current.set(element.id, el);
+    return () => { videoRefs.current.delete(element.id); };
+  }, [element.id, videoRefs]);
+
   return (
     <div
       style={{ width: '100%', height: '100%', position: 'relative' }}
@@ -16,6 +27,7 @@ export function VideoEl({ element, editMode, background = '#ffffff' }: Props) {
       {/* Video clipped inside */}
       <div style={{ width: '100%', height: '100%', overflow: 'hidden', background }}>
         <video
+          ref={localRef}
           src={element.src}
           loop={element.loop}
           autoPlay={element.autoplay}
