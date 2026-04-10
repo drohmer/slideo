@@ -344,6 +344,32 @@ export function Editor() {
     sendMessage({ type: 'slide:add', slide: newSlide, index });
   }, [pres, currentSlideIndex, updatePres, sendMessage]);
 
+  const toggleBoldItalicRef = useRef<(key: string) => void>(() => {});
+  toggleBoldItalicRef.current = (key: string) => {
+    const slide = pres?.slides[currentSlideIndex];
+    if (!slide) return;
+    const el = slide.elements.find(e => selectedIds.has(e.id));
+    if (!el || el.type !== 'text') return;
+    const tag = key === 'b' ? 'strong' : 'em';
+    const hasTag = el.content.includes(`<${tag}>`);
+    let newContent: string;
+    if (hasTag) {
+      // Remove all bold/italic tags
+      newContent = el.content.replace(new RegExp(`</?${tag}>`, 'g'), '');
+    } else {
+      // Wrap content — handle both <p>wrapped</p> and raw text
+      if (el.content.includes('<p>')) {
+        newContent = el.content.replace(/(<p>)(.*?)(<\/p>)/gs, (_, open, inner, close) =>
+          `${open}<${tag}>${inner}</${tag}>${close}`
+        );
+      } else {
+        // Raw text without <p> tags — wrap the whole thing
+        newContent = `<${tag}>${el.content}</${tag}>`;
+      }
+    }
+    updateElement({ ...el, content: newContent });
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -381,6 +407,13 @@ export function Editor() {
       }
 
       if (editingId) return;
+
+      // Bold/Italic toggle on selected text element (not editing)
+      if ((e.key.toLowerCase() === 'b' || e.key.toLowerCase() === 'i') && !e.ctrlKey && !e.metaKey && !isInput && selectedIds.size === 1) {
+        toggleBoldItalicRef.current(e.key.toLowerCase());
+        e.preventDefault();
+        return;
+      }
 
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0 && !isInput) {
         e.preventDefault();
@@ -518,6 +551,7 @@ export function Editor() {
           onCommitCrop={commitCrop}
           onDeleteSelected={deleteSelected}
           activeEditor={activeEditor}
+          onToggleBoldItalic={(key: string) => toggleBoldItalicRef.current(key)}
         />
 
         <PropertiesPanel
@@ -534,12 +568,12 @@ export function Editor() {
           onStopCropping={commitCrop}
           currentSlideBg={pres.slides[currentSlideIndex]?.background}
           onSlideBgChange={(color) => {
-            const slideId = pres.slides[currentSlideIndex]?.id;
             updatePres(prev => ({
               ...prev,
               slides: prev.slides.map((s, i) => i === currentSlideIndex ? { ...s, background: color } : s),
             }));
           }}
+          onToggleBoldItalic={(key: string) => toggleBoldItalicRef.current(key)}
         />
       </div>
     </div>

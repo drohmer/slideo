@@ -19,9 +19,10 @@ interface Props {
   onStopCropping?: () => void;
   onSlideBgChange?: (color: string) => void;
   currentSlideBg?: string;
+  onToggleBoldItalic?: (key: string) => void;
 }
 
-export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg }: Props) {
+export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg, onToggleBoldItalic }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const { t } = useI18n();
 
@@ -168,7 +169,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
       </div>
 
       {element.type === 'video' && <VideoProps element={element} onUpdate={onUpdate} />}
-      {element.type === 'text' && <TextProps element={element} onUpdate={onUpdate} activeEditor={activeEditor} />}
+      {element.type === 'text' && <TextProps element={element} onUpdate={onUpdate} activeEditor={activeEditor} onToggleBoldItalic={onToggleBoldItalic} />}
 
       {(element.type === 'image' || element.type === 'video') && (
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 8 }}>
@@ -360,8 +361,10 @@ function VideoProps({ element, onUpdate }: { element: VideoElement; onUpdate: (e
   );
 }
 
-function TextProps({ element, onUpdate, activeEditor }: { element: TextElement; onUpdate: (el: SlideElement) => void; activeEditor: TiptapEditor | null }) {
+function TextProps({ element, onUpdate, activeEditor, onToggleBoldItalic }: { element: TextElement; onUpdate: (el: SlideElement) => void; activeEditor: TiptapEditor | null; onToggleBoldItalic?: (key: string) => void }) {
   const { t } = useI18n();
+  const isBold = activeEditor ? activeEditor.isActive('bold') : element.content.includes('<strong>');
+  const isItalic = activeEditor ? activeEditor.isActive('italic') : element.content.includes('<em>');
   return (
     <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
       <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('text')}</div>
@@ -387,12 +390,13 @@ function TextProps({ element, onUpdate, activeEditor }: { element: TextElement; 
         <button
           onMouseDown={e => {
             e.preventDefault();
-            activeEditor?.chain().focus().toggleBold().run();
+            if (activeEditor) activeEditor.chain().focus().toggleBold().run();
+            else onToggleBoldItalic?.('b');
           }}
           style={{
             ...formatBtnStyle,
             fontWeight: 700,
-            background: activeEditor?.isActive('bold') ? 'var(--accent-light)' : 'var(--surface)',
+            background: isBold ? 'var(--accent-light)' : 'var(--surface)',
           }}
         >
           B
@@ -400,12 +404,13 @@ function TextProps({ element, onUpdate, activeEditor }: { element: TextElement; 
         <button
           onMouseDown={e => {
             e.preventDefault();
-            activeEditor?.chain().focus().toggleItalic().run();
+            if (activeEditor) activeEditor.chain().focus().toggleItalic().run();
+            else onToggleBoldItalic?.('i');
           }}
           style={{
             ...formatBtnStyle,
             fontStyle: 'italic',
-            background: activeEditor?.isActive('italic') ? 'var(--accent-light)' : 'var(--surface)',
+            background: isItalic ? 'var(--accent-light)' : 'var(--surface)',
           }}
         >
           I

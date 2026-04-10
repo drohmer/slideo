@@ -29,6 +29,7 @@ interface Props {
   onCommitCrop: () => void;
   onDeleteSelected: () => void;
   activeEditor: TiptapEditor | null;
+  onToggleBoldItalic: (key: string) => void;
 }
 
 const CANVAS_WIDTH = 960;
@@ -73,7 +74,7 @@ function rectsIntersect(
 }
 
 export function SlideCanvas({
-  slide, presentationId, selectedIds, editingId, onSelectElement, onSelectMultiple, onUpdateElements, onUpdateElement, onMoveGroup, onStartEditing, onStopEditing, onEditorReady, previewPositions, croppingId, onStartCropping, onCommitCrop, onDeleteSelected, activeEditor,
+  slide, presentationId, selectedIds, editingId, onSelectElement, onSelectMultiple, onUpdateElements, onUpdateElement, onMoveGroup, onStartEditing, onStopEditing, onEditorReady, previewPositions, croppingId, onStartCropping, onCommitCrop, onDeleteSelected, activeEditor, onToggleBoldItalic,
 }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -634,6 +635,7 @@ export function SlideCanvas({
                     }}
                     isCropping={croppingId === el.id}
                     activeEditor={editingId === el.id ? activeEditor : null}
+                    onToggleBoldItalic={onToggleBoldItalic}
                   />
                 )}
                 {isCroppingThis && (el.type === 'image' || el.type === 'video') && (

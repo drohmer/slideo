@@ -9,9 +9,10 @@ interface Props {
   onStartCropping: () => void;
   isCropping: boolean;
   activeEditor: TiptapEditor | null;
+  onToggleBoldItalic?: (key: string) => void;
 }
 
-export function ElementToolbar({ element, onUpdate, onDelete, onStartCropping, isCropping, activeEditor }: Props) {
+export function ElementToolbar({ element, onUpdate, onDelete, onStartCropping, isCropping, activeEditor, onToggleBoldItalic }: Props) {
   const { t } = useI18n();
   return (
     <div
@@ -34,7 +35,7 @@ export function ElementToolbar({ element, onUpdate, onDelete, onStartCropping, i
       onMouseDown={e => e.stopPropagation()}
       onClick={e => e.stopPropagation()}
     >
-      {element.type === 'text' && <TextToolbar element={element} onUpdate={onUpdate} activeEditor={activeEditor} />}
+      {element.type === 'text' && <TextToolbar element={element} onUpdate={onUpdate} activeEditor={activeEditor} onToggleBoldItalic={onToggleBoldItalic} />}
       {(element.type === 'image' || element.type === 'video') && (
         <MediaToolbar onStartCropping={onStartCropping} isCropping={isCropping} />
       )}
@@ -44,12 +45,15 @@ export function ElementToolbar({ element, onUpdate, onDelete, onStartCropping, i
   );
 }
 
-function TextToolbar({ element, onUpdate, activeEditor }: {
+function TextToolbar({ element, onUpdate, activeEditor, onToggleBoldItalic }: {
   element: TextElement;
   onUpdate: (el: SlideElement) => void;
   activeEditor: TiptapEditor | null;
+  onToggleBoldItalic?: (key: string) => void;
 }) {
   const { t } = useI18n();
+  const isBold = activeEditor ? activeEditor.isActive('bold') : element.content.includes('<strong>');
+  const isItalic = activeEditor ? activeEditor.isActive('italic') : element.content.includes('<em>');
   return (
     <>
       <ToolBtn
@@ -69,15 +73,21 @@ function TextToolbar({ element, onUpdate, activeEditor }: {
       <ToolBtn
         label="B"
         title={t('bold')}
-        active={activeEditor?.isActive('bold')}
-        onClick={() => activeEditor?.chain().focus().toggleBold().run()}
+        active={isBold}
+        onClick={() => {
+          if (activeEditor) activeEditor.chain().focus().toggleBold().run();
+          else onToggleBoldItalic?.('b');
+        }}
         bold
       />
       <ToolBtn
         label="I"
         title={t('italic')}
-        active={activeEditor?.isActive('italic')}
-        onClick={() => activeEditor?.chain().focus().toggleItalic().run()}
+        active={isItalic}
+        onClick={() => {
+          if (activeEditor) activeEditor.chain().focus().toggleItalic().run();
+          else onToggleBoldItalic?.('i');
+        }}
         italic
       />
       <Sep />
