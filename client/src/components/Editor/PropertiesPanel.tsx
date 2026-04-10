@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import type { Editor as TiptapEditor } from '@tiptap/react';
-import type { SlideElement, VideoElement, TextElement } from '../../types';
+import { getVisibleRect, type SlideElement, type VideoElement, type TextElement } from '../../types';
 
 type PreviewPos = Array<{ id: string; x: number; y: number; width: number; height: number }>;
 
@@ -18,9 +19,43 @@ interface Props {
 }
 
 export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onPreview, onReorder, croppingId, onStartCropping, onStopCropping }: Props) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  if (collapsed) {
+    return (
+      <div
+        onClick={() => setCollapsed(false)}
+        title="Afficher les propriétés"
+        style={{
+          width: 20, background: '#ebe6e0', cursor: 'pointer',
+          borderLeft: '1px solid rgba(0,0,0,0.1)', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <span style={{ fontSize: 10, opacity: 0.4 }}>{'\u25C0'}</span>
+      </div>
+    );
+  }
+
+  const collapseBtn = (
+    <div
+      onClick={() => setCollapsed(true)}
+      title="Masquer les propriétés"
+      style={{
+        display: 'flex', justifyContent: 'flex-end', marginBottom: 4, cursor: 'pointer',
+      }}
+    >
+      <span style={{
+        background: 'rgba(0,0,0,0.06)', borderRadius: 3,
+        padding: '3px 8px', fontSize: 10, opacity: 0.5,
+      }}>{'\u25B6'}</span>
+    </div>
+  );
+
   if (elements.length === 0) {
     return (
       <div style={panelStyle}>
+        {collapseBtn}
         <div style={labelStyle}>Outils</div>
         {onAddText && (
           <button onClick={onAddText} style={{
@@ -42,6 +77,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
   if (elements.length > 1) {
     return (
       <div style={panelStyle}>
+        {collapseBtn}
         <div style={labelStyle}>Multi-sélection</div>
         <div style={{ fontSize: 12, marginBottom: 16, opacity: 0.6 }}>
           {elements.length} éléments sélectionnés
@@ -67,6 +103,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
 
   return (
     <div style={panelStyle}>
+      {collapseBtn}
       <div style={labelStyle}>Propriétés</div>
 
       <div style={{ marginBottom: 12 }}>
@@ -137,10 +174,10 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
         <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginTop: 8 }}>
           <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>Ordre</div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            <ActionBtn label="Premier plan" onClick={() => onReorder(element.id, 'top')} />
-            <ActionBtn label="Avancer" onClick={() => onReorder(element.id, 'up')} />
-            <ActionBtn label="Reculer" onClick={() => onReorder(element.id, 'down')} />
-            <ActionBtn label="Arrière-plan" onClick={() => onReorder(element.id, 'bottom')} />
+            <ActionBtn label="⤒ Devant" onClick={() => onReorder(element.id, 'top')} />
+            <ActionBtn label="↑" onClick={() => onReorder(element.id, 'up')} />
+            <ActionBtn label="↓" onClick={() => onReorder(element.id, 'down')} />
+            <ActionBtn label="⤓ Fond" onClick={() => onReorder(element.id, 'bottom')} />
           </div>
         </div>
       )}
@@ -163,48 +200,55 @@ function AlignSection({ elements, onUpdateMultiple, onPreview }: {
   onUpdateMultiple: (elements: SlideElement[]) => void;
   onPreview?: (positions: PreviewPos | null) => void;
 }) {
-  const toPreview = (els: SlideElement[]): PreviewPos =>
-    els.map(el => ({ id: el.id, x: el.x, y: el.y, width: el.width, height: el.height }));
+  // Use visible rects (after crop) for alignment calculations
+  const vis = elements.map(el => ({ el, v: getVisibleRect(el) }));
 
+  const toPreview = (items: typeof vis): PreviewPos =>
+    items.map(({ el, v }) => ({ id: el.id, x: v.x, y: v.y, width: v.width, height: v.height }));
+
+  // Align by moving el.x/y so that the visible rect reaches the target position
   const alignLeft = () => {
-    const minX = Math.min(...elements.map(el => el.x));
-    return elements.map(el => ({ ...el, x: minX }));
+    const minX = Math.min(...vis.map(({ v }) => v.x));
+    return vis.map(({ el, v }) => ({ ...el, x: el.x + (minX - v.x) }));
   };
   const alignCenterH = () => {
-    const avgCX = elements.reduce((s, el) => s + el.x + el.width / 2, 0) / elements.length;
-    return elements.map(el => ({ ...el, x: Math.round(avgCX - el.width / 2) }));
+    const avgCX = vis.reduce((s, { v }) => s + v.x + v.width / 2, 0) / vis.length;
+    return vis.map(({ el, v }) => ({ ...el, x: Math.round(el.x + (avgCX - v.width / 2 - v.x)) }));
   };
   const alignRight = () => {
-    const maxR = Math.max(...elements.map(el => el.x + el.width));
-    return elements.map(el => ({ ...el, x: maxR - el.width }));
+    const maxR = Math.max(...vis.map(({ v }) => v.x + v.width));
+    return vis.map(({ el, v }) => ({ ...el, x: Math.round(el.x + (maxR - v.width - v.x)) }));
   };
   const alignTop = () => {
-    const minY = Math.min(...elements.map(el => el.y));
-    return elements.map(el => ({ ...el, y: minY }));
+    const minY = Math.min(...vis.map(({ v }) => v.y));
+    return vis.map(({ el, v }) => ({ ...el, y: el.y + (minY - v.y) }));
   };
   const alignCenterV = () => {
-    const avgCY = elements.reduce((s, el) => s + el.y + el.height / 2, 0) / elements.length;
-    return elements.map(el => ({ ...el, y: Math.round(avgCY - el.height / 2) }));
+    const avgCY = vis.reduce((s, { v }) => s + v.y + v.height / 2, 0) / vis.length;
+    return vis.map(({ el, v }) => ({ ...el, y: Math.round(el.y + (avgCY - v.height / 2 - v.y)) }));
   };
   const alignBottom = () => {
-    const maxB = Math.max(...elements.map(el => el.y + el.height));
-    return elements.map(el => ({ ...el, y: maxB - el.height }));
+    const maxB = Math.max(...vis.map(({ v }) => v.y + v.height));
+    return vis.map(({ el, v }) => ({ ...el, y: Math.round(el.y + (maxB - v.height - v.y)) }));
   };
   const sameWidth = () => {
-    const maxW = Math.max(...elements.map(el => el.width));
-    return elements.map(el => ({ ...el, width: maxW }));
+    const maxW = Math.max(...vis.map(({ v }) => v.width));
+    return vis.map(({ el, v }) => ({ ...el, width: Math.round(el.width * maxW / v.width) }));
   };
   const sameHeight = () => {
-    const maxH = Math.max(...elements.map(el => el.height));
-    return elements.map(el => ({ ...el, height: maxH }));
+    const maxH = Math.max(...vis.map(({ v }) => v.height));
+    return vis.map(({ el, v }) => ({ ...el, height: Math.round(el.height * maxH / v.height) }));
   };
   const sameBoth = () => {
-    const maxW = Math.max(...elements.map(el => el.width));
-    const maxH = Math.max(...elements.map(el => el.height));
-    return elements.map(el => ({ ...el, width: maxW, height: maxH }));
+    const maxW = Math.max(...vis.map(({ v }) => v.width));
+    const maxH = Math.max(...vis.map(({ v }) => v.height));
+    return vis.map(({ el, v }) => ({ ...el, width: Math.round(el.width * maxW / v.width), height: Math.round(el.height * maxH / v.height) }));
   };
 
-  const preview = (compute: () => SlideElement[]) => () => onPreview?.(toPreview(compute()));
+  const previewFn = (compute: () => SlideElement[]) => () => {
+    const result = compute();
+    onPreview?.(result.map(el => { const v = getVisibleRect(el); return { id: el.id, x: v.x, y: v.y, width: v.width, height: v.height }; }));
+  };
   const clearPreview = () => onPreview?.(null);
   const apply = (compute: () => SlideElement[]) => () => { onUpdateMultiple(compute()); onPreview?.(null); };
 
@@ -213,25 +257,25 @@ function AlignSection({ elements, onUpdateMultiple, onPreview }: {
       <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
         <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Aligner horizontalement</div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <PreviewBtn label="Gauche" onClick={apply(alignLeft)} onEnter={preview(alignLeft)} onLeave={clearPreview} />
-          <PreviewBtn label="Centre" onClick={apply(alignCenterH)} onEnter={preview(alignCenterH)} onLeave={clearPreview} />
-          <PreviewBtn label="Droite" onClick={apply(alignRight)} onEnter={preview(alignRight)} onLeave={clearPreview} />
+          <PreviewBtn label="Gauche" onClick={apply(alignLeft)} onEnter={previewFn(alignLeft)} onLeave={clearPreview} />
+          <PreviewBtn label="Centre" onClick={apply(alignCenterH)} onEnter={previewFn(alignCenterH)} onLeave={clearPreview} />
+          <PreviewBtn label="Droite" onClick={apply(alignRight)} onEnter={previewFn(alignRight)} onLeave={clearPreview} />
         </div>
       </div>
       <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
         <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Aligner verticalement</div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <PreviewBtn label="Haut" onClick={apply(alignTop)} onEnter={preview(alignTop)} onLeave={clearPreview} />
-          <PreviewBtn label="Centre" onClick={apply(alignCenterV)} onEnter={preview(alignCenterV)} onLeave={clearPreview} />
-          <PreviewBtn label="Bas" onClick={apply(alignBottom)} onEnter={preview(alignBottom)} onLeave={clearPreview} />
+          <PreviewBtn label="Haut" onClick={apply(alignTop)} onEnter={previewFn(alignTop)} onLeave={clearPreview} />
+          <PreviewBtn label="Centre" onClick={apply(alignCenterV)} onEnter={previewFn(alignCenterV)} onLeave={clearPreview} />
+          <PreviewBtn label="Bas" onClick={apply(alignBottom)} onEnter={previewFn(alignBottom)} onLeave={clearPreview} />
         </div>
       </div>
       <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
         <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Même taille</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          <PreviewBtn label="Largeur" onClick={apply(sameWidth)} onEnter={preview(sameWidth)} onLeave={clearPreview} />
-          <PreviewBtn label="Hauteur" onClick={apply(sameHeight)} onEnter={preview(sameHeight)} onLeave={clearPreview} />
-          <PreviewBtn label="Les deux" onClick={apply(sameBoth)} onEnter={preview(sameBoth)} onLeave={clearPreview} />
+          <PreviewBtn label="Largeur" onClick={apply(sameWidth)} onEnter={previewFn(sameWidth)} onLeave={clearPreview} />
+          <PreviewBtn label="Hauteur" onClick={apply(sameHeight)} onEnter={previewFn(sameHeight)} onLeave={clearPreview} />
+          <PreviewBtn label="Les deux" onClick={apply(sameBoth)} onEnter={previewFn(sameBoth)} onLeave={clearPreview} />
         </div>
       </div>
     </>

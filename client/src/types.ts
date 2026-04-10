@@ -40,6 +40,22 @@ export interface TextElement extends BaseElement {
 
 export type SlideElement = VideoElement | ImageElement | TextElement;
 
+/** Returns the visible rect after crop (or the full rect if no crop) */
+export function getVisibleRect(el: SlideElement): { x: number; y: number; width: number; height: number } {
+  if (el.type !== 'image' && el.type !== 'video') return el;
+  const t = el.cropTop ?? 0;
+  const r = el.cropRight ?? 0;
+  const b = el.cropBottom ?? 0;
+  const l = el.cropLeft ?? 0;
+  if (t === 0 && r === 0 && b === 0 && l === 0) return el;
+  return {
+    x: el.x + el.width * l / 100,
+    y: el.y + el.height * t / 100,
+    width: el.width * (100 - l - r) / 100,
+    height: el.height * (100 - t - b) / 100,
+  };
+}
+
 export interface Slide {
   id: string;
   background: string;

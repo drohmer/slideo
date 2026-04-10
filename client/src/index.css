@@ -15,4 +15,4 @@ body {
 }
 
 .tiptap { outline: none; }
-.tiptap p { margin: 0; }
+.tiptap p { margin: 0; white-space: nowrap; }

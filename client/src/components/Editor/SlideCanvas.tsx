@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Rnd } from 'react-rnd';
-import type { Slide, SlideElement, VideoElement, ImageElement } from '../../types';
+import { getVisibleRect, type Slide, type SlideElement, type VideoElement, type ImageElement } from '../../types';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { uploadFile } from '../../api';
 import { VideoEl } from '../Elements/VideoElement';
 import { ImageEl } from '../Elements/ImageElement';
 import { TextEl } from '../Elements/TextElement';
 import { ElementToolbar } from './ElementToolbar';
+import { DraggableElement } from './DraggableElement';
 
 interface Props {
   slide: Slide;
@@ -108,8 +108,9 @@ export function SlideCanvas({
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [liveTextScale, setLiveTextScale] = useState<{ id: string; scale: number } | null>(null);
-  // Live drag offset for group movement
+  // Live drag offset for group movement and outline tracking
   const [groupDragOffset, setGroupDragOffset] = useState<{ dx: number; dy: number } | null>(null);
+  const [liveDragDelta, setLiveDragDelta] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const draggingIdRef = useRef<string | null>(null);
 
   // Marquee selection state
@@ -179,9 +180,10 @@ export function SlideCanvas({
     setMarquee(m);
     // Live-select elements that intersect the marquee
     if (m.w > 5 && m.h > 5) {
-      const hits = slide.elements.filter(el =>
-        rectsIntersect(m, { x: el.x, y: el.y, w: el.width, h: el.height })
-      );
+      const hits = slide.elements.filter(el => {
+        const v = getVisibleRect(el);
+        return rectsIntersect(m, { x: v.x, y: v.y, w: v.width, h: v.height });
+      });
       onSelectMultiple(hits.map(el => el.id));
     }
   }, [screenToCanvas, slide.elements, onSelectMultiple]);
@@ -379,14 +381,14 @@ export function SlideCanvas({
 
           {/* Group bounding box */}
           {selectedIds.size > 1 && (() => {
-            const selected = slide.elements.filter(el => selectedIds.has(el.id));
+            const selected = slide.elements.filter(el => selectedIds.has(el.id)).map(getVisibleRect);
             if (selected.length < 2) return null;
             const offX = groupDragOffset?.dx ?? 0;
             const offY = groupDragOffset?.dy ?? 0;
-            const minX = Math.min(...selected.map(el => el.x)) + offX;
-            const minY = Math.min(...selected.map(el => el.y)) + offY;
-            const maxX = Math.max(...selected.map(el => el.x + el.width)) + offX;
-            const maxY = Math.max(...selected.map(el => el.y + el.height)) + offY;
+            const minX = Math.min(...selected.map(r => r.x)) + offX;
+            const minY = Math.min(...selected.map(r => r.y)) + offY;
+            const maxX = Math.max(...selected.map(r => r.x + r.width)) + offX;
+            const maxY = Math.max(...selected.map(r => r.y + r.height)) + offY;
             return (
               <div style={{
                 position: 'absolute',
@@ -415,15 +417,12 @@ export function SlideCanvas({
           ))}
 
           {slide.elements.map(el => {
-            const ar = getVideoAR(el);
             const isTextEditing = el.type === 'text' && editingId === el.id;
             const isSelected = selectedIds.has(el.id);
             const isMulti = selectedIds.size > 1;
-            // Apply live drag offset to non-dragged selected elements
             const liveOffset = (isSelected && isMulti && groupDragOffset && draggingIdRef.current !== el.id)
               ? groupDragOffset : null;
 
-            // Crop info for visual clip-path (not during crop mode)
             const isCroppingThis = croppingId === el.id;
             const ct = (!isCroppingThis && (el.type === 'image' || el.type === 'video')) ? ((el as any).cropTop ?? 0) : 0;
             const cr = (!isCroppingThis && (el.type === 'image' || el.type === 'video')) ? ((el as any).cropRight ?? 0) : 0;
@@ -432,78 +431,60 @@ export function SlideCanvas({
             const hasCrop = ct > 0 || cr > 0 || cb > 0 || cl > 0;
 
             return (
-              <Rnd
+              <DraggableElement
                 key={el.id}
-                position={{
-                  x: el.x + (liveOffset?.dx ?? 0),
-                  y: el.y + (liveOffset?.dy ?? 0),
-                }}
-                size={{ width: el.width, height: el.height }}
-                scale={zoom}
-                disableDragging={isTextEditing || croppingId === el.id}
-                enableResizing={!isTextEditing && !isMulti && croppingId !== el.id}
-                lockAspectRatio={false}
+                x={el.x + (liveOffset?.dx ?? 0)}
+                y={el.y + (liveOffset?.dy ?? 0)}
+                width={el.width}
+                height={el.height}
+                zoom={zoom}
+                disableDrag={isTextEditing || isCroppingThis}
+                disableResize={isTextEditing || isMulti || isCroppingThis || !isSelected}
+                lockAspectRatio={el.type === 'image' || el.type === 'video'}
                 onDragStart={() => {
                   dragStartRef.current = { x: el.x, y: el.y };
                   draggingIdRef.current = el.id;
                 }}
-                onDrag={(_e, d) => {
+                onDrag={(dx, dy) => {
+                  setLiveDragDelta({ id: el.id, dx, dy });
                   if (isSelected && isMulti && dragStartRef.current) {
-                    setGroupDragOffset({
-                      dx: d.x - dragStartRef.current.x,
-                      dy: d.y - dragStartRef.current.y,
-                    });
+                    setGroupDragOffset({ dx, dy });
                   }
                 }}
-                onDragStop={(_e, d) => {
-                  onUpdateElement({ ...el, x: d.x, y: d.y });
+                onDragStop={(newX, newY) => {
+                  setLiveDragDelta(null);
+                  onUpdateElement({ ...el, x: newX, y: newY });
                   if (isSelected && isMulti && dragStartRef.current) {
-                    const dx = d.x - dragStartRef.current.x;
-                    const dy = d.y - dragStartRef.current.y;
+                    const dx = newX - dragStartRef.current.x;
+                    const dy = newY - dragStartRef.current.y;
                     onMoveGroup(el.id, dx, dy);
                   }
                   dragStartRef.current = null;
                   draggingIdRef.current = null;
                   setGroupDragOffset(null);
                 }}
-                onResize={el.type === 'text' ? (_e, _dir, ref) => {
-                  setLiveTextScale({ id: el.id, scale: parseInt(ref.style.width) / el.width });
+                onResize={el.type === 'text' ? (w) => {
+                  setLiveTextScale({ id: el.id, scale: w / el.width });
                 } : undefined}
-                onResizeStop={(_e, _dir, ref, _delta, pos) => {
-                  const newWidth = parseInt(ref.style.width);
-                  const newHeight = parseInt(ref.style.height);
+                onResizeStop={(w, h, newX, newY) => {
                   if (el.type === 'text') {
                     setLiveTextScale(null);
-                    const scale = newWidth / el.width;
-                    onUpdateElement({
-                      ...el,
-                      fontSize: Math.max(8, Math.round(el.fontSize * scale)),
-                      width: newWidth,
-                      height: newHeight,
-                      x: pos.x,
-                      y: pos.y,
-                    });
+                    const scale = w / el.width;
+                    onUpdateElement({ ...el, fontSize: Math.max(8, Math.round(el.fontSize * scale)), width: w, height: h, x: newX, y: newY });
                   } else {
-                    onUpdateElement({
-                      ...el,
-                      width: newWidth,
-                      height: newHeight,
-                      x: pos.x,
-                      y: pos.y,
-                    });
+                    onUpdateElement({ ...el, width: w, height: h, x: newX, y: newY });
                   }
                 }}
-                onClick={(e: React.MouseEvent) => {
+                onClick={(e) => {
                   e.stopPropagation();
                   if (isTextEditing) return;
                   if (e.shiftKey) {
                     onSelectElement(el.id, true);
                   } else if (!isSelected || !isMulti) {
-                    // Only change selection if not already part of a multi-selection
                     onSelectElement(el.id);
                   }
                 }}
-                onDoubleClick={(e: React.MouseEvent) => {
+                onDoubleClick={(e) => {
                   e.stopPropagation();
                   if (el.type === 'text') {
                     onSelectElement(el.id);
@@ -522,32 +503,29 @@ export function SlideCanvas({
                   cursor: isTextEditing ? 'text' : 'grab',
                 }}
               >
-                <div style={hasCrop ? {
+                {/* Content with crop clip-path */}
+                <div style={{
                   width: '100%', height: '100%',
-                  clipPath: `inset(${ct}% ${cr}% ${cb}% ${cl}%)`,
-                } : undefined}>
+                  ...(hasCrop && { clipPath: `inset(${ct}% ${cr}% ${cb}% ${cl}%)` }),
+                }}>
                   {renderElement(el)}
                 </div>
-                {/* Selection outline at the visible (cropped) area */}
-                {hasCrop && isSelected && (
-                  <div style={{
-                    position: 'absolute',
-                    left: `${cl}%`, top: `${ct}%`,
-                    right: `${cr}%`, bottom: `${cb}%`,
-                    border: '2px solid #4361ee',
-                    pointerEvents: 'none',
-                  }} />
+                {/* Block pointer events on cropped area when not selected */}
+                {hasCrop && !isSelected && (
+                  <div
+                    style={{
+                      position: 'absolute', inset: 0,
+                      clipPath: `inset(0 0 0 0)`,
+                      // Inverted: cover everything EXCEPT the visible area
+                    }}
+                  >
+                    {ct > 0 && <CropBlocker style={{ top: 0, left: 0, right: 0, height: `${ct}%` }} />}
+                    {cb > 0 && <CropBlocker style={{ bottom: 0, left: 0, right: 0, height: `${cb}%` }} />}
+                    {cl > 0 && <CropBlocker style={{ top: 0, left: 0, bottom: 0, width: `${cl}%` }} />}
+                    {cr > 0 && <CropBlocker style={{ top: 0, right: 0, bottom: 0, width: `${cr}%` }} />}
+                  </div>
                 )}
-                {hasCrop && !isSelected && hoveredId === el.id && (
-                  <div style={{
-                    position: 'absolute',
-                    left: `${cl}%`, top: `${ct}%`,
-                    right: `${cr}%`, bottom: `${cb}%`,
-                    border: '1px dashed rgba(67,97,238,0.5)',
-                    pointerEvents: 'none',
-                  }} />
-                )}
-                {isSelected && !isMulti && !isTextEditing && (
+                {isSelected && !isMulti && !isTextEditing && !hasCrop && (
                   <ElementToolbar
                     element={el}
                     onUpdate={onUpdateElement}
@@ -560,10 +538,49 @@ export function SlideCanvas({
                     activeEditor={editingId === el.id ? activeEditor : null}
                   />
                 )}
-                {croppingId === el.id && (el.type === 'image' || el.type === 'video') && (
+                {isCroppingThis && (el.type === 'image' || el.type === 'video') && (
                   <CropHandles element={el} onUpdate={onUpdateElement} zoom={zoom} />
                 )}
-              </Rnd>
+              </DraggableElement>
+            );
+          })}
+
+          {/* Selection outlines + resize handles for cropped elements */}
+          {slide.elements.map(el => {
+            if (el.type !== 'image' && el.type !== 'video') return null;
+            const ct = (el as any).cropTop ?? 0;
+            const cr = (el as any).cropRight ?? 0;
+            const cb = (el as any).cropBottom ?? 0;
+            const cl = (el as any).cropLeft ?? 0;
+            if (ct === 0 && cr === 0 && cb === 0 && cl === 0) return null;
+            if (croppingId === el.id) return null;
+            const isSelected = selectedIds.has(el.id);
+            const isHovered = hoveredId === el.id;
+            const isMulti = selectedIds.size > 1;
+            if (!isSelected && !isHovered) return null;
+            const v = getVisibleRect(el);
+            const dragOff = liveDragDelta?.id === el.id ? liveDragDelta : null;
+            return (
+              <CroppedOutline
+                key={`outline-${el.id}`}
+                vx={v.x + (dragOff?.dx ?? 0)} vy={v.y + (dragOff?.dy ?? 0)}
+                vw={v.width} vh={v.height}
+                isSelected={isSelected}
+              >
+                {isSelected && !isMulti && (
+                  <ElementToolbar
+                    element={el}
+                    onUpdate={onUpdateElement}
+                    onDelete={onDeleteSelected}
+                    onStartCropping={() => {
+                      if (croppingId === el.id) onCommitCrop();
+                      else onStartCropping(el.id);
+                    }}
+                    isCropping={croppingId === el.id}
+                    activeEditor={null}
+                  />
+                )}
+              </CroppedOutline>
             );
           })}
         </div>
@@ -658,6 +675,29 @@ function CropHandles({ element, onUpdate, zoom }: {
       ))}
     </>
   );
+}
+
+function CroppedOutline({ vx, vy, vw, vh, isSelected, children }: {
+  vx: number; vy: number; vw: number; vh: number;
+  isSelected: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div style={{
+      position: 'absolute',
+      left: vx, top: vy, width: vw, height: vh,
+      border: isSelected ? '2px solid #4361ee' : '1px dashed rgba(67,97,238,0.5)',
+      pointerEvents: 'none',
+      zIndex: 160,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function CropBlocker({ style }: { style: React.CSSProperties }) {
+  const stop = (e: React.SyntheticEvent) => { e.stopPropagation(); e.preventDefault(); };
+  return <div style={{ position: 'absolute', ...style }} data-no-drag="true" onPointerDown={stop} onClick={stop} />;
 }
 
 const zoomBtnStyle: React.CSSProperties = {

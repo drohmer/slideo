@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { Presentation, SlideElement, WsMessage } from '../../types';
+import type { Presentation, Slide, SlideElement, WsMessage } from '../../types';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { getPresentation, savePresentation } from '../../api';
 import { useWebSocket } from '../../useWebSocket';
@@ -22,6 +22,15 @@ export function Editor() {
   const commitCropRef = useRef<() => void>(() => {});
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
 
+  // Undo/Redo history
+  const undoStack = useRef<Presentation[]>([]);
+  const redoStack = useRef<Presentation[]>([]);
+  const skipHistory = useRef(false);
+
+  // Clipboard for elements and slides
+  const clipboardElements = useRef<SlideElement[]>([]);
+  const clipboardSlide = useRef<Slide | null>(null);
+
   useEffect(() => {
     if (id) getPresentation(id).then(setPres);
   }, [id]);
@@ -36,6 +45,12 @@ export function Editor() {
   const updatePres = useCallback((updater: (prev: Presentation) => Presentation) => {
     setPres(prev => {
       if (!prev) return prev;
+      if (!skipHistory.current) {
+        undoStack.current.push(prev);
+        if (undoStack.current.length > 50) undoStack.current.shift();
+        redoStack.current = [];
+      }
+      skipHistory.current = false;
       const updated = updater(prev);
       autoSave(updated);
       return updated;
@@ -266,12 +281,93 @@ export function Editor() {
   }, []);
   commitCropRef.current = commitCrop;
 
-  // Keyboard shortcuts (Delete, Escape) — not while editing text or focused on an input
+  const undo = useCallback(() => {
+    const prev = undoStack.current.pop();
+    if (!prev) return;
+    setPres(cur => {
+      if (cur) redoStack.current.push(cur);
+      autoSave(prev);
+      return prev;
+    });
+  }, [autoSave]);
+
+  const redo = useCallback(() => {
+    const next = redoStack.current.pop();
+    if (!next) return;
+    setPres(cur => {
+      if (cur) undoStack.current.push(cur);
+      autoSave(next);
+      return next;
+    });
+  }, [autoSave]);
+
+  const copyElements = useCallback(() => {
+    const slide = pres?.slides[currentSlideIndex];
+    if (!slide) return;
+    clipboardElements.current = slide.elements.filter(el => selectedIds.has(el.id));
+  }, [pres, currentSlideIndex, selectedIds]);
+
+  const pasteElements = useCallback(() => {
+    const toPaste = clipboardElements.current;
+    if (toPaste.length === 0) return;
+    const newEls = toPaste.map(el => ({ ...el, id: crypto.randomUUID(), x: el.x + 20, y: el.y + 20 }));
+    const slide = pres?.slides[currentSlideIndex];
+    if (!slide) return;
+    updateCurrentSlideElements([...slide.elements, ...newEls]);
+    setSelectedIds(new Set(newEls.map(el => el.id)));
+  }, [pres, currentSlideIndex, updateCurrentSlideElements]);
+
+  const duplicateSlide = useCallback(() => {
+    const slide = pres?.slides[currentSlideIndex];
+    if (!slide) return;
+    const newSlide = { ...slide, id: crypto.randomUUID(), elements: slide.elements.map(el => ({ ...el, id: crypto.randomUUID() })) };
+    const index = currentSlideIndex + 1;
+    updatePres(prev => {
+      const slides = [...prev.slides];
+      slides.splice(index, 0, newSlide);
+      return { ...prev, slides };
+    });
+    setCurrentSlideIndex(index);
+    sendMessage({ type: 'slide:add', slide: newSlide, index });
+  }, [pres, currentSlideIndex, updatePres, sendMessage]);
+
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (editingId) return;
       const tag = (document.activeElement as HTMLElement)?.tagName;
       const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || (document.activeElement as HTMLElement)?.isContentEditable;
+
+      // Undo/Redo — always active (except in text inputs)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey && !isInput) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey)) && !isInput) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
+      // Copy/Paste elements
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !isInput && !editingId) {
+        copyElements();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && !isInput && !editingId) {
+        e.preventDefault();
+        pasteElements();
+        return;
+      }
+
+      // Duplicate slide (Ctrl+D)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd' && !isInput) {
+        e.preventDefault();
+        duplicateSlide();
+        return;
+      }
+
+      if (editingId) return;
 
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0 && !isInput) {
         e.preventDefault();
@@ -288,7 +384,7 @@ export function Editor() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIds, editingId, croppingId, deleteSelected, commitCrop]);
+  }, [selectedIds, editingId, croppingId, deleteSelected, commitCrop, undo, redo, copyElements, pasteElements, duplicateSlide]);
 
   if (!pres) return <div style={{ padding: 40 }}>Chargement...</div>;
 
@@ -345,6 +441,7 @@ export function Editor() {
           slides={pres.slides}
           currentIndex={currentSlideIndex}
           onSelect={setCurrentSlideIndex}
+          onDuplicate={duplicateSlide}
           onAdd={() => {
             const newSlide = { id: crypto.randomUUID(), background: '#ffffff', elements: [] };
             const index = pres.slides.length;

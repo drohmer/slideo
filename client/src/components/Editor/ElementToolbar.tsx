@@ -28,6 +28,7 @@ export function ElementToolbar({ element, onUpdate, onDelete, onStartCropping, i
         zIndex: 300,
         whiteSpace: 'nowrap',
       }}
+      onPointerDown={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}
       onClick={e => e.stopPropagation()}
     >
