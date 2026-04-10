@@ -1,4 +1,5 @@
 import type { VideoElement } from '../../types';
+import { useI18n } from '../../i18n';
 
 interface Props {
   element: VideoElement;
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export function VideoEl({ element, editMode, background = '#ffffff' }: Props) {
+  const { t } = useI18n();
   return (
     <div
       style={{ width: '100%', height: '100%', position: 'relative' }}
@@ -35,7 +37,7 @@ export function VideoEl({ element, editMode, background = '#ffffff' }: Props) {
         }}>
           {element.loop && (
             <span style={{ background: 'rgba(67,97,238,0.8)', borderRadius: 3, padding: '1px 5px', fontSize: 9, color: 'white' }}>
-              boucle
+              {t('loopBadge')}
             </span>
           )}
           <span style={{ fontSize: 9, opacity: 0.6, color: 'white' }}>

@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { PresentationSummary } from '../types';
 import { listPresentations, createPresentation, deletePresentation } from '../api';
+import { useI18n } from '../i18n';
+import { useTheme } from '../theme';
 
 export function Home() {
   const [presentations, setPresentations] = useState<PresentationSummary[]>([]);
   const navigate = useNavigate();
+  const { t, lang } = useI18n();
+  const { theme } = useTheme();
 
   useEffect(() => {
     listPresentations().then(setPresentations);
@@ -27,13 +31,13 @@ export function Home() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <h1 style={{ fontSize: 28 }}>VideoSlide</h1>
         <button onClick={handleCreate} style={btnStyle}>
-          + Nouvelle présentation
+          {t('newPresentation')}
         </button>
       </div>
 
       {presentations.length === 0 ? (
         <p style={{ opacity: 0.5, textAlign: 'center', marginTop: 60 }}>
-          Aucune présentation. Créez-en une pour commencer.
+          {t('noPresentation')}
         </p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -46,14 +50,14 @@ export function Home() {
               <div>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>{p.title}</div>
                 <div style={{ fontSize: 12, opacity: 0.5 }}>
-                  Modifié le {new Date(p.updatedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {t('modifiedOn')} {new Date(p.updatedAt).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
               <button
                 onClick={(e) => handleDelete(p.id, e)}
                 style={{ background: 'none', border: 'none', color: '#e94560', cursor: 'pointer', fontSize: 14, padding: '4px 8px' }}
               >
-                Supprimer
+                {t('delete')}
               </button>
             </div>
           ))}

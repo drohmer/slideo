@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { Slide } from '../../types';
+import { useI18n } from '../../i18n';
+import { useTheme } from '../../theme';
 
 interface Props {
   slides: Slide[];
@@ -12,32 +14,57 @@ interface Props {
 
 export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete, onDuplicate }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  const { t } = useI18n();
+  const { theme } = useTheme();
 
   if (collapsed) {
     return (
-      <div
-        onClick={() => setCollapsed(false)}
-        title="Afficher les slides"
-        style={{
-          width: 20, background: '#ebe6e0', cursor: 'pointer',
-          borderRight: '1px solid rgba(0,0,0,0.1)', flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        <span style={{ fontSize: 10, opacity: 0.4 }}>{'\u25B6'}</span>
+      <div style={{
+        width: 32, background: theme.panelBg,
+        borderRight: `1px solid ${theme.border}`, flexShrink: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        padding: '6px 0', gap: 3, overflowY: 'auto',
+      }}>
+        <div
+          onClick={() => setCollapsed(false)}
+          title={t('showSlides')}
+          style={{ cursor: 'pointer', marginBottom: 4, fontSize: 10, opacity: 0.4 }}
+        >{'\u25B6'}</div>
+        {slides.map((slide, i) => (
+          <div
+            key={slide.id}
+            onClick={() => onSelect(i)}
+            title={`${t('slideN')} ${i + 1}`}
+            style={{
+              width: 22, height: 14, borderRadius: 2, cursor: 'pointer',
+              background: slide.background,
+              border: i === currentIndex ? '2px solid #4361ee' : '1px solid rgba(0,0,0,0.15)',
+            }}
+          />
+        ))}
+        <div
+          onClick={onAdd}
+          title={t('addSlide')}
+          style={{
+            width: 22, height: 14, borderRadius: 2, cursor: 'pointer',
+            border: '1px dashed rgba(0,0,0,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 10, opacity: 0.3,
+          }}
+        >+</div>
       </div>
     );
   }
 
   return (
     <div style={{
-      width: 130, background: '#ebe6e0',
+      width: 130, background: theme.panelBg,
       padding: 8, overflowY: 'auto',
-      borderRight: '1px solid rgba(0,0,0,0.1)', flexShrink: 0,
+      borderRight: `1px solid ${theme.border}`, flexShrink: 0,
     }}>
       <div
         onClick={() => setCollapsed(true)}
-        title="Masquer les slides"
+        title={t('hideSlides')}
         style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4, cursor: 'pointer' }}
       >
         <span style={{
@@ -49,7 +76,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
       {(
         <>
           <div style={{ fontSize: 10, textTransform: 'uppercase', opacity: 0.4, marginBottom: 8, letterSpacing: 1 }}>
-            Slides
+            {t('slides')}
           </div>
 
           {slides.map((slide, i) => (
@@ -67,7 +94,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <span style={{ fontSize: 10, color: '#666' }}>
-                  {slide.elements.length > 0 ? `${slide.elements.length} elem.` : 'Vide'}
+                  {slide.elements.length > 0 ? `${slide.elements.length} ${t('nElem')}` : t('empty')}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 3 }}>
@@ -76,7 +103,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
                   {i === currentIndex && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
-                      title="Dupliquer (Ctrl+D)"
+                      title={`${t('duplicateSlide')} (Ctrl+D)`}
                       style={{ background: 'none', border: 'none', color: '#4361ee', cursor: 'pointer', fontSize: 10, padding: 0 }}
                     >
                       ⧉

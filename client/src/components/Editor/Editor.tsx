@@ -4,6 +4,8 @@ import type { Presentation, Slide, SlideElement, WsMessage } from '../../types';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { getPresentation, savePresentation } from '../../api';
 import { useWebSocket } from '../../useWebSocket';
+import { useI18n } from '../../i18n';
+import { useTheme } from '../../theme';
 import { SlidesSidebar } from './SlidesSidebar';
 import { SlideCanvas } from './SlideCanvas';
 import { PropertiesPanel } from './PropertiesPanel';
@@ -11,6 +13,8 @@ import { PropertiesPanel } from './PropertiesPanel';
 export function Editor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t, lang, setLang } = useI18n();
+  const { theme, mode, setMode } = useTheme();
   const [pres, setPres] = useState<Presentation | null>(null);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -253,7 +257,7 @@ export function Editor() {
     const newElements = [...slide.elements, {
       id: crypto.randomUUID(),
       type: 'text' as const,
-      content: 'Double-cliquez pour éditer',
+      content: t('textPlaceholder'),
       x: 50, y: 50, width: 300, height: 40,
       fontSize: 24, color: '#000000', bold: false,
     }];
@@ -386,18 +390,18 @@ export function Editor() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedIds, editingId, croppingId, deleteSelected, commitCrop, undo, redo, copyElements, pasteElements, duplicateSlide]);
 
-  if (!pres) return <div style={{ padding: 40 }}>Chargement...</div>;
+  if (!pres) return <div style={{ padding: 40 }}>{t('loading')}</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: theme.bg, color: theme.text }}>
       {/* Top bar */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '8px 16px', background: '#fff', borderBottom: '1px solid rgba(0,0,0,0.1)',
+        padding: '8px 16px', background: theme.topBar, borderBottom: `1px solid ${theme.border}`,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span
-            style={{ fontWeight: 700, cursor: 'pointer' }}
+            style={{ fontWeight: 700, cursor: 'pointer', color: theme.text }}
             onClick={() => navigate('/')}
           >
             VideoSlide
@@ -410,14 +414,33 @@ export function Editor() {
               sendMessage({ type: 'title:update', title });
             }}
             style={{
-              background: 'transparent', border: '1px solid rgba(0,0,0,0.15)',
-              borderRadius: 4, padding: '4px 8px', color: '#1a1a1a', fontSize: 13, width: 220,
+              background: 'transparent', border: `1px solid ${theme.border}`,
+              borderRadius: 4, padding: '4px 8px', color: theme.text, fontSize: 13, width: 220,
             }}
           />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={() => setLang(lang === 'fr' ? 'en' : 'fr')}
+            style={{
+              background: 'transparent', border: `1px solid ${theme.border}`,
+              borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: theme.textMuted,
+            }}
+          >
+            {lang === 'fr' ? 'EN' : 'FR'}
+          </button>
+          <button
+            onClick={() => setMode(mode === 'light' ? 'dark' : 'light')}
+            title={mode === 'light' ? t('darkMode') : t('lightMode')}
+            style={{
+              background: 'transparent', border: `1px solid ${theme.border}`,
+              borderRadius: 4, padding: '3px 8px', fontSize: 13, cursor: 'pointer', color: theme.textMuted,
+            }}
+          >
+            {mode === 'light' ? '🌙' : '☀️'}
+          </button>
           <span
-            title={isConnected ? 'Connecté (temps réel)' : 'Déconnecté'}
+            title={isConnected ? t('connected') : t('disconnected')}
             style={{
               width: 8, height: 8, borderRadius: '50%',
               background: isConnected ? '#22c55e' : '#ef4444',
@@ -430,7 +453,7 @@ export function Editor() {
               padding: '6px 16px', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
             }}
           >
-            Presenter
+            {t('present')}
           </button>
         </div>
       </div>
@@ -491,6 +514,14 @@ export function Editor() {
           croppingId={croppingId}
           onStartCropping={setCroppingId}
           onStopCropping={commitCrop}
+          currentSlideBg={pres.slides[currentSlideIndex]?.background}
+          onSlideBgChange={(color) => {
+            const slideId = pres.slides[currentSlideIndex]?.id;
+            updatePres(prev => ({
+              ...prev,
+              slides: prev.slides.map((s, i) => i === currentSlideIndex ? { ...s, background: color } : s),
+            }));
+          }}
         />
       </div>
     </div>

@@ -9,6 +9,7 @@ interface Props {
   disableDrag?: boolean;
   disableResize?: boolean;
   lockAspectRatio?: boolean;
+  snapFn?: (x: number, y: number, w: number, h: number) => { x: number; y: number };
   children: ReactNode;
   onDragStart?: () => void;
   onDrag?: (dx: number, dy: number) => void;
@@ -35,7 +36,7 @@ const CURSORS: Record<ResizeDir, string> = {
 
 export function DraggableElement({
   x, y, width, height, zoom,
-  disableDrag, disableResize, lockAspectRatio,
+  disableDrag, disableResize, lockAspectRatio, snapFn,
   children, style,
   onDragStart, onDrag, onDragStop,
   onResize, onResizeStop,
@@ -71,19 +72,33 @@ export function DraggableElement({
 
     onDragStart?.();
 
+    const constrain = (rawDx: number, rawDy: number, shift: boolean) => {
+      if (!shift) return { dx: rawDx, dy: rawDy };
+      return Math.abs(rawDx) >= Math.abs(rawDy)
+        ? { dx: rawDx, dy: 0 }
+        : { dx: 0, dy: rawDy };
+    };
+
+    const snap = (px: number, py: number) =>
+      snapFn ? snapFn(px, py, origW, origH) : { x: px, y: py };
+
     const onMove = (ev: globalThis.PointerEvent) => {
-      const dx = (ev.clientX - startX) / zoom;
-      const dy = (ev.clientY - startY) / zoom;
-      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) dragMoved.current = true;
-      applyLive(origX + dx, origY + dy, origW, origH);
-      onDrag?.(dx, dy);
+      const rawDx = (ev.clientX - startX) / zoom;
+      const rawDy = (ev.clientY - startY) / zoom;
+      if (Math.abs(rawDx) > 1 || Math.abs(rawDy) > 1) dragMoved.current = true;
+      const { dx, dy } = constrain(rawDx, rawDy, ev.shiftKey);
+      const snapped = snap(origX + dx, origY + dy);
+      applyLive(snapped.x, snapped.y, origW, origH);
+      onDrag?.(snapped.x - origX, snapped.y - origY);
     };
     const onUp = (ev: globalThis.PointerEvent) => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
-      const dx = (ev.clientX - startX) / zoom;
-      const dy = (ev.clientY - startY) / zoom;
-      onDragStop?.(origX + dx, origY + dy);
+      const rawDx = (ev.clientX - startX) / zoom;
+      const rawDy = (ev.clientY - startY) / zoom;
+      const { dx, dy } = constrain(rawDx, rawDy, ev.shiftKey);
+      const snapped = snap(origX + dx, origY + dy);
+      onDragStop?.(snapped.x, snapped.y);
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);

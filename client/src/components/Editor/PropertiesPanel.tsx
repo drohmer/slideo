@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { getVisibleRect, type SlideElement, type VideoElement, type TextElement } from '../../types';
+import { useI18n } from '../../i18n';
+import { useTheme } from '../../theme';
 
 type PreviewPos = Array<{ id: string; x: number; y: number; width: number; height: number }>;
 
@@ -16,23 +18,34 @@ interface Props {
   croppingId?: string | null;
   onStartCropping?: (id: string) => void;
   onStopCropping?: () => void;
+  onSlideBgChange?: (color: string) => void;
+  currentSlideBg?: string;
 }
 
-export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onPreview, onReorder, croppingId, onStartCropping, onStopCropping }: Props) {
+export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  const { t } = useI18n();
+  const { theme } = useTheme();
 
   if (collapsed) {
     return (
-      <div
-        onClick={() => setCollapsed(false)}
-        title="Afficher les propriétés"
-        style={{
-          width: 20, background: '#ebe6e0', cursor: 'pointer',
-          borderLeft: '1px solid rgba(0,0,0,0.1)', flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        <span style={{ fontSize: 10, opacity: 0.4 }}>{'\u25C0'}</span>
+      <div style={{
+        width: 32, background: theme.panelBg,
+        borderLeft: `1px solid ${theme.border}`, flexShrink: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        padding: '6px 0', gap: 6,
+      }}>
+        <div
+          onClick={() => setCollapsed(false)}
+          title={t('showProps')}
+          style={{ cursor: 'pointer', marginBottom: 2, fontSize: 10, opacity: 0.4 }}
+        >{'\u25C0'}</div>
+        {onAddText && (
+          <MiniBtn title={t('addTextMini')} onClick={onAddText}>T</MiniBtn>
+        )}
+        {elements.length > 0 && (
+          <MiniBtn title={t('delete')} onClick={onDelete} danger>🗑</MiniBtn>
+        )}
       </div>
     );
   }
@@ -40,7 +53,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
   const collapseBtn = (
     <div
       onClick={() => setCollapsed(true)}
-      title="Masquer les propriétés"
+      title={t('hideProps')}
       style={{
         display: 'flex', justifyContent: 'flex-end', marginBottom: 4, cursor: 'pointer',
       }}
@@ -54,21 +67,43 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
 
   if (elements.length === 0) {
     return (
-      <div style={panelStyle}>
+      <div style={{ ...panelStyle, background: theme.panelBg, borderLeft: `1px solid ${theme.border}`, color: theme.text }}>
         {collapseBtn}
-        <div style={labelStyle}>Outils</div>
+        <div style={labelStyle}>{t('tools')}</div>
         {onAddText && (
           <button onClick={onAddText} style={{
-            width: '100%', background: '#fff', border: '1px solid rgba(0,0,0,0.15)',
-            borderRadius: 4, padding: '6px 0', color: '#1a1a1a', fontSize: 12, cursor: 'pointer',
+            width: '100%', background: theme.surface, border: `1px solid ${theme.border}`,
+            borderRadius: 4, padding: '6px 0', color: theme.text, fontSize: 12, cursor: 'pointer',
             marginBottom: 12,
           }}>
-            + Texte
+            {t('addText')}
           </button>
         )}
         <p style={{ fontSize: 11, opacity: 0.4 }}>
-          Glissez des fichiers sur le canvas pour ajouter des vidéos ou images
+          {t('dragHint')}
         </p>
+        {onSlideBgChange && (
+          <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: 10, marginTop: 12 }}>
+            <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('slideBg')}</div>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+              <button onClick={() => onSlideBgChange('#ffffff')} style={{
+                width: 28, height: 28, background: '#ffffff', border: '1px solid rgba(0,0,0,0.2)',
+                borderRadius: 3, cursor: 'pointer',
+              }} title={t('white')} />
+              <button onClick={() => onSlideBgChange('#000000')} style={{
+                width: 28, height: 28, background: '#000000', border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 3, cursor: 'pointer',
+              }} title={t('black')} />
+              <input
+                type="color"
+                value={currentSlideBg || '#ffffff'}
+                onChange={e => onSlideBgChange(e.target.value)}
+                title={t('custom')}
+                style={{ width: 28, height: 28, border: `1px solid ${theme.border}`, borderRadius: 3, padding: 0, cursor: 'pointer', background: 'transparent' }}
+              />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -76,11 +111,11 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
   // Multi-selection panel
   if (elements.length > 1) {
     return (
-      <div style={panelStyle}>
+      <div style={{ ...panelStyle, background: theme.panelBg, borderLeft: `1px solid ${theme.border}`, color: theme.text }}>
         {collapseBtn}
-        <div style={labelStyle}>Multi-sélection</div>
+        <div style={labelStyle}>{t('multiSelection')}</div>
         <div style={{ fontSize: 12, marginBottom: 16, opacity: 0.6 }}>
-          {elements.length} éléments sélectionnés
+          {elements.length} {t('nSelected')}
         </div>
 
         <AlignSection elements={elements} onUpdateMultiple={onUpdateMultiple} onPreview={onPreview} />
@@ -92,7 +127,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
             borderRadius: 4, padding: '6px 0', color: '#e94560', fontSize: 12, cursor: 'pointer',
           }}
         >
-          Supprimer ({elements.length})
+          {t('delete')} ({elements.length})
         </button>
       </div>
     );
@@ -102,24 +137,24 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
   const element = elements[0];
 
   return (
-    <div style={panelStyle}>
+    <div style={{ ...panelStyle, background: theme.panelBg, borderLeft: `1px solid ${theme.border}`, color: theme.text }}>
       {collapseBtn}
-      <div style={labelStyle}>Propriétés</div>
+      <div style={labelStyle}>{t('properties')}</div>
 
       <div style={{ marginBottom: 12 }}>
-        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 4 }}>Type</div>
+        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 4 }}>{t('type')}</div>
         <div style={{ fontWeight: 600, color: '#4361ee', fontSize: 13 }}>{element.type}</div>
       </div>
 
       {element.type !== 'text' && (
         <div style={{ marginBottom: 12 }}>
-          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 4 }}>Fichier</div>
+          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 4 }}>{t('file')}</div>
           <div style={{ fontSize: 11, wordBreak: 'break-all' }}>{element.src.split('/').pop()}</div>
         </div>
       )}
 
       <div style={{ marginBottom: 8 }}>
-        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 4 }}>Position</div>
+        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 4 }}>{t('position')}</div>
         <div style={{ display: 'flex', gap: 6 }}>
           <Field label="X" value={Math.round(element.x)} onChange={v => onUpdate({ ...element, x: v })} />
           <Field label="Y" value={Math.round(element.y)} onChange={v => onUpdate({ ...element, y: v })} />
@@ -127,7 +162,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 4 }}>Taille</div>
+        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 4 }}>{t('size')}</div>
         <div style={{ display: 'flex', gap: 6 }}>
           <Field label="W" value={Math.round(element.width)} onChange={v => onUpdate({ ...element, width: v })} />
           <Field label="H" value={Math.round(element.height)} onChange={v => onUpdate({ ...element, height: v })} />
@@ -139,7 +174,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
 
       {(element.type === 'image' || element.type === 'video') && (
         <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginTop: 8 }}>
-          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>Rogner</div>
+          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('crop')}</div>
           <div style={{ display: 'flex', gap: 4 }}>
             <button
               onClick={() => {
@@ -153,7 +188,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
                 padding: '4px 8px', fontSize: 10, cursor: 'pointer',
               }}
             >
-              ✂ {croppingId === element.id ? 'Terminer' : 'Rogner'}
+              {'✂ ' + (croppingId === element.id ? t('cropFinish') : t('cropStart'))}
             </button>
             {(element.cropTop || element.cropRight || element.cropBottom || element.cropLeft) ? (
               <button
@@ -163,7 +198,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
                   padding: '4px 8px', fontSize: 10, cursor: 'pointer', color: '#1a1a1a',
                 }}
               >
-                Reset
+                {t('reset')}
               </button>
             ) : null}
           </div>
@@ -172,12 +207,12 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
 
       {onReorder && (
         <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginTop: 8 }}>
-          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>Ordre</div>
+          <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('order')}</div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            <ActionBtn label="⤒ Devant" onClick={() => onReorder(element.id, 'top')} />
+            <ActionBtn label={t('toFront')} onClick={() => onReorder(element.id, 'top')} />
             <ActionBtn label="↑" onClick={() => onReorder(element.id, 'up')} />
             <ActionBtn label="↓" onClick={() => onReorder(element.id, 'down')} />
-            <ActionBtn label="⤓ Fond" onClick={() => onReorder(element.id, 'bottom')} />
+            <ActionBtn label={t('toBack')} onClick={() => onReorder(element.id, 'bottom')} />
           </div>
         </div>
       )}
@@ -189,7 +224,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
           borderRadius: 4, padding: '6px 0', color: '#e94560', fontSize: 12, cursor: 'pointer',
         }}
       >
-        Supprimer
+        {t('delete')}
       </button>
     </div>
   );
@@ -200,6 +235,7 @@ function AlignSection({ elements, onUpdateMultiple, onPreview }: {
   onUpdateMultiple: (elements: SlideElement[]) => void;
   onPreview?: (positions: PreviewPos | null) => void;
 }) {
+  const { t } = useI18n();
   // Use visible rects (after crop) for alignment calculations
   const vis = elements.map(el => ({ el, v: getVisibleRect(el) }));
 
@@ -255,27 +291,27 @@ function AlignSection({ elements, onUpdateMultiple, onPreview }: {
   return (
     <>
       <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
-        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Aligner horizontalement</div>
+        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>{t('alignH')}</div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <PreviewBtn label="Gauche" onClick={apply(alignLeft)} onEnter={previewFn(alignLeft)} onLeave={clearPreview} />
-          <PreviewBtn label="Centre" onClick={apply(alignCenterH)} onEnter={previewFn(alignCenterH)} onLeave={clearPreview} />
-          <PreviewBtn label="Droite" onClick={apply(alignRight)} onEnter={previewFn(alignRight)} onLeave={clearPreview} />
+          <PreviewBtn label={t('left')} onClick={apply(alignLeft)} onEnter={previewFn(alignLeft)} onLeave={clearPreview} />
+          <PreviewBtn label={t('center')} onClick={apply(alignCenterH)} onEnter={previewFn(alignCenterH)} onLeave={clearPreview} />
+          <PreviewBtn label={t('right')} onClick={apply(alignRight)} onEnter={previewFn(alignRight)} onLeave={clearPreview} />
         </div>
       </div>
       <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
-        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Aligner verticalement</div>
+        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>{t('alignV')}</div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <PreviewBtn label="Haut" onClick={apply(alignTop)} onEnter={previewFn(alignTop)} onLeave={clearPreview} />
-          <PreviewBtn label="Centre" onClick={apply(alignCenterV)} onEnter={previewFn(alignCenterV)} onLeave={clearPreview} />
-          <PreviewBtn label="Bas" onClick={apply(alignBottom)} onEnter={previewFn(alignBottom)} onLeave={clearPreview} />
+          <PreviewBtn label={t('top')} onClick={apply(alignTop)} onEnter={previewFn(alignTop)} onLeave={clearPreview} />
+          <PreviewBtn label={t('center')} onClick={apply(alignCenterV)} onEnter={previewFn(alignCenterV)} onLeave={clearPreview} />
+          <PreviewBtn label={t('bottom')} onClick={apply(alignBottom)} onEnter={previewFn(alignBottom)} onLeave={clearPreview} />
         </div>
       </div>
       <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginBottom: 12 }}>
-        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>Même taille</div>
+        <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 8 }}>{t('sameSize')}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          <PreviewBtn label="Largeur" onClick={apply(sameWidth)} onEnter={previewFn(sameWidth)} onLeave={clearPreview} />
-          <PreviewBtn label="Hauteur" onClick={apply(sameHeight)} onEnter={previewFn(sameHeight)} onLeave={clearPreview} />
-          <PreviewBtn label="Les deux" onClick={apply(sameBoth)} onEnter={previewFn(sameBoth)} onLeave={clearPreview} />
+          <PreviewBtn label={t('width')} onClick={apply(sameWidth)} onEnter={previewFn(sameWidth)} onLeave={clearPreview} />
+          <PreviewBtn label={t('height')} onClick={apply(sameHeight)} onEnter={previewFn(sameHeight)} onLeave={clearPreview} />
+          <PreviewBtn label={t('both')} onClick={apply(sameBoth)} onEnter={previewFn(sameBoth)} onLeave={clearPreview} />
         </div>
       </div>
     </>
@@ -315,22 +351,24 @@ function ActionBtn({ label, onClick }: { label: string; onClick: () => void }) {
 }
 
 function VideoProps({ element, onUpdate }: { element: VideoElement; onUpdate: (el: SlideElement) => void }) {
+  const { t } = useI18n();
   return (
     <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginTop: 4 }}>
-      <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>Vidéo</div>
-      <Checkbox label="Boucle" checked={element.loop} onChange={v => onUpdate({ ...element, loop: v })} />
-      <Checkbox label="Auto-play" checked={element.autoplay} onChange={v => onUpdate({ ...element, autoplay: v })} />
-      <Checkbox label="Muet" checked={element.muted} onChange={v => onUpdate({ ...element, muted: v })} />
+      <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('video')}</div>
+      <Checkbox label={t('loop')} checked={element.loop} onChange={v => onUpdate({ ...element, loop: v })} />
+      <Checkbox label={t('autoplay')} checked={element.autoplay} onChange={v => onUpdate({ ...element, autoplay: v })} />
+      <Checkbox label={t('muted')} checked={element.muted} onChange={v => onUpdate({ ...element, muted: v })} />
     </div>
   );
 }
 
 function TextProps({ element, onUpdate, activeEditor }: { element: TextElement; onUpdate: (el: SlideElement) => void; activeEditor: TiptapEditor | null }) {
+  const { t } = useI18n();
   return (
     <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: 10, marginTop: 4 }}>
-      <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>Texte</div>
+      <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('text')}</div>
       <div style={{ marginBottom: 8 }}>
-        <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>Taille police</div>
+        <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('fontSize')}</div>
         <input
           type="number"
           value={element.fontSize}
@@ -339,7 +377,7 @@ function TextProps({ element, onUpdate, activeEditor }: { element: TextElement; 
         />
       </div>
       <div style={{ marginBottom: 8 }}>
-        <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>Couleur</div>
+        <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('color')}</div>
         <input
           type="color"
           value={element.color}
@@ -402,8 +440,22 @@ function Checkbox({ label, checked, onChange }: { label: string; checked: boolea
   );
 }
 
+function MiniBtn({ title, onClick, children, danger }: { title: string; onClick: () => void; children: React.ReactNode; danger?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: '#fff', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 3,
+        cursor: 'pointer', fontSize: 11, color: danger ? '#e94560' : '#1a1a1a',
+      }}
+    >{children}</button>
+  );
+}
+
 const panelStyle: React.CSSProperties = {
-  width: 190, background: '#ebe6e0', padding: 12, borderLeft: '1px solid rgba(0,0,0,0.1)',
+  width: 190, padding: 12,
   fontSize: 11, overflowY: 'auto', flexShrink: 0,
 };
 

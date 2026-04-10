@@ -1,5 +1,6 @@
 import type { SlideElement, TextElement } from '../../types';
 import type { Editor as TiptapEditor } from '@tiptap/react';
+import { useI18n } from '../../i18n';
 
 interface Props {
   element: SlideElement;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function ElementToolbar({ element, onUpdate, onDelete, onStartCropping, isCropping, activeEditor }: Props) {
+  const { t } = useI18n();
   return (
     <div
       style={{
@@ -37,7 +39,7 @@ export function ElementToolbar({ element, onUpdate, onDelete, onStartCropping, i
         <MediaToolbar onStartCropping={onStartCropping} isCropping={isCropping} />
       )}
       <Sep />
-      <ToolBtn label="🗑" title="Supprimer" onClick={onDelete} />
+      <ToolBtn label="🗑" title={t('delete')} onClick={onDelete} />
     </div>
   );
 }
@@ -47,11 +49,12 @@ function TextToolbar({ element, onUpdate, activeEditor }: {
   onUpdate: (el: SlideElement) => void;
   activeEditor: TiptapEditor | null;
 }) {
+  const { t } = useI18n();
   return (
     <>
       <ToolBtn
         label="A−"
-        title="Réduire la police"
+        title={t('fontSmaller')}
         onClick={() => onUpdate({ ...element, fontSize: Math.max(8, element.fontSize - 2) })}
       />
       <span style={{ fontSize: 10, minWidth: 20, textAlign: 'center', color: '#666' }}>
@@ -59,20 +62,20 @@ function TextToolbar({ element, onUpdate, activeEditor }: {
       </span>
       <ToolBtn
         label="A+"
-        title="Agrandir la police"
+        title={t('fontLarger')}
         onClick={() => onUpdate({ ...element, fontSize: element.fontSize + 2 })}
       />
       <Sep />
       <ToolBtn
         label="B"
-        title="Gras"
+        title={t('bold')}
         active={activeEditor?.isActive('bold')}
         onClick={() => activeEditor?.chain().focus().toggleBold().run()}
         bold
       />
       <ToolBtn
         label="I"
-        title="Italique"
+        title={t('italic')}
         active={activeEditor?.isActive('italic')}
         onClick={() => activeEditor?.chain().focus().toggleItalic().run()}
         italic
@@ -82,7 +85,7 @@ function TextToolbar({ element, onUpdate, activeEditor }: {
         type="color"
         value={element.color}
         onChange={e => onUpdate({ ...element, color: e.target.value })}
-        title="Couleur"
+        title={t('color')}
         style={{ width: 20, height: 20, border: '1px solid rgba(0,0,0,0.15)', borderRadius: 3, padding: 0, cursor: 'pointer', background: 'transparent' }}
       />
     </>
@@ -93,10 +96,11 @@ function MediaToolbar({ onStartCropping, isCropping }: {
   onStartCropping: () => void;
   isCropping: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <ToolBtn
       label="✂"
-      title={isCropping ? 'Terminer le rognage' : 'Rogner'}
+      title={isCropping ? t('cropFinishTooltip') : t('cropTooltip')}
       active={isCropping}
       onClick={onStartCropping}
     />

@@ -8,6 +8,7 @@ import { ImageEl } from '../Elements/ImageElement';
 import { TextEl } from '../Elements/TextElement';
 import { ElementToolbar } from './ElementToolbar';
 import { DraggableElement } from './DraggableElement';
+import { useI18n } from '../../i18n';
 
 interface Props {
   slide: Slide;
@@ -74,10 +75,13 @@ function rectsIntersect(
 export function SlideCanvas({
   slide, presentationId, selectedIds, editingId, onSelectElement, onSelectMultiple, onUpdateElements, onUpdateElement, onMoveGroup, onStartEditing, onStopEditing, onEditorReady, previewPositions, croppingId, onStartCropping, onCommitCrop, onDeleteSelected, activeEditor,
 }: Props) {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [snapGuides, setSnapGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
 
@@ -111,6 +115,73 @@ export function SlideCanvas({
   // Live drag offset for group movement and outline tracking
   const [groupDragOffset, setGroupDragOffset] = useState<{ dx: number; dy: number } | null>(null);
   const [liveDragDelta, setLiveDragDelta] = useState<{ id: string; dx: number; dy: number } | null>(null);
+
+  // Alt key toggles snap
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Alt') { e.preventDefault(); setSnapEnabled(s => !s); }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
+
+  const SNAP_THRESHOLD = 5;
+  const CANVAS_W = CANVAS_WIDTH;
+  const CANVAS_H = CANVAS_HEIGHT;
+
+  // Snap function: finds nearest edges/centers of other elements + canvas bounds
+  const makeSnapFn = useCallback((draggedId: string) => {
+    if (!snapEnabled) return undefined;
+    return (px: number, py: number, pw: number, ph: number) => {
+      const others = slide.elements.filter(el => el.id !== draggedId);
+      const guidesX: number[] = [0, CANVAS_W / 2, CANVAS_W]; // canvas edges + center
+      const guidesY: number[] = [0, CANVAS_H / 2, CANVAS_H];
+      for (const el of others) {
+        const v = getVisibleRect(el);
+        guidesX.push(v.x, v.x + v.width / 2, v.x + v.width);
+        guidesY.push(v.y, v.y + v.height / 2, v.y + v.height);
+      }
+      // Points to snap: left, center, right of dragged element
+      const myXs = [px, px + pw / 2, px + pw];
+      const myYs = [py, py + ph / 2, py + ph];
+
+      let bestDx = 0, bestDistX = SNAP_THRESHOLD + 1;
+      let bestDy = 0, bestDistY = SNAP_THRESHOLD + 1;
+      const activeGuidesX: number[] = [];
+      const activeGuidesY: number[] = [];
+
+      for (const mx of myXs) {
+        for (const gx of guidesX) {
+          const dist = Math.abs(mx - gx);
+          if (dist < bestDistX) { bestDistX = dist; bestDx = gx - mx; }
+        }
+      }
+      for (const my of myYs) {
+        for (const gy of guidesY) {
+          const dist = Math.abs(my - gy);
+          if (dist < bestDistY) { bestDistY = dist; bestDy = gy - my; }
+        }
+      }
+
+      const sx = bestDistX <= SNAP_THRESHOLD ? px + bestDx : px;
+      const sy = bestDistY <= SNAP_THRESHOLD ? py + bestDy : py;
+
+      // Collect active guides for visualization
+      if (bestDistX <= SNAP_THRESHOLD) {
+        for (const mx of [sx, sx + pw / 2, sx + pw]) {
+          for (const gx of guidesX) { if (Math.abs(mx - gx) < 1) activeGuidesX.push(gx); }
+        }
+      }
+      if (bestDistY <= SNAP_THRESHOLD) {
+        for (const my of [sy, sy + ph / 2, sy + ph]) {
+          for (const gy of guidesY) { if (Math.abs(my - gy) < 1) activeGuidesY.push(gy); }
+        }
+      }
+
+      setSnapGuides({ x: [...new Set(activeGuidesX)], y: [...new Set(activeGuidesY)] });
+      return { x: sx, y: sy };
+    };
+  }, [snapEnabled, slide.elements]);
   const draggingIdRef = useRef<string | null>(null);
 
   // Marquee selection state
@@ -305,6 +376,14 @@ export function SlideCanvas({
         <span style={{ minWidth: 36, textAlign: 'center', opacity: 0.6 }}>{Math.round(zoom * 100)}%</span>
         <button onClick={() => setZoom(z => Math.min(MAX_ZOOM, Math.round((z + ZOOM_STEP) * 100) / 100))} style={zoomBtnStyle}>+</button>
         <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} style={{ ...zoomBtnStyle, opacity: zoom === 1 ? 0.3 : 1, marginLeft: 2 }}>Reset</button>
+        <div style={{ width: 1, height: 14, background: 'rgba(0,0,0,0.12)', margin: '0 2px' }} />
+        <button
+          onClick={() => setSnapEnabled(s => !s)}
+          title={snapEnabled ? t('snapOn') + ' (Alt)' : t('snapOff') + ' (Alt)'}
+          style={{ ...zoomBtnStyle, opacity: snapEnabled ? 1 : 0.3 }}
+        >
+          ⊞
+        </button>
       </div>
 
       {/* Canvas wrapper with zoom + pan */}
@@ -347,7 +426,7 @@ export function SlideCanvas({
               background: 'rgba(67,97,238,0.1)', borderRadius: 4, zIndex: 100,
               fontSize: 16, color: '#4361ee', pointerEvents: 'none',
             }}>
-              Déposez vos fichiers ici
+              {t('dropFiles')}
             </div>
           )}
 
@@ -416,6 +495,20 @@ export function SlideCanvas({
             }} />
           ))}
 
+          {/* Snap guides */}
+          {snapGuides.x.map((gx, i) => (
+            <div key={`sg-x-${i}`} style={{
+              position: 'absolute', left: gx, top: -2000, width: 1, height: 5000,
+              background: 'rgba(220,38,38,0.5)', pointerEvents: 'none', zIndex: 180,
+            }} />
+          ))}
+          {snapGuides.y.map((gy, i) => (
+            <div key={`sg-y-${i}`} style={{
+              position: 'absolute', top: gy, left: -2000, height: 1, width: 5000,
+              background: 'rgba(220,38,38,0.5)', pointerEvents: 'none', zIndex: 180,
+            }} />
+          ))}
+
           {slide.elements.map(el => {
             const isTextEditing = el.type === 'text' && editingId === el.id;
             const isSelected = selectedIds.has(el.id);
@@ -441,7 +534,11 @@ export function SlideCanvas({
                 disableDrag={isTextEditing || isCroppingThis}
                 disableResize={isTextEditing || isMulti || isCroppingThis || !isSelected}
                 lockAspectRatio={el.type === 'image' || el.type === 'video'}
+                snapFn={makeSnapFn(el.id)}
                 onDragStart={() => {
+                  if (!isSelected) {
+                    onSelectElement(el.id);
+                  }
                   dragStartRef.current = { x: el.x, y: el.y };
                   draggingIdRef.current = el.id;
                 }}
@@ -453,6 +550,7 @@ export function SlideCanvas({
                 }}
                 onDragStop={(newX, newY) => {
                   setLiveDragDelta(null);
+                  setSnapGuides({ x: [], y: [] });
                   onUpdateElement({ ...el, x: newX, y: newY });
                   if (isSelected && isMulti && dragStartRef.current) {
                     const dx = newX - dragStartRef.current.x;
