@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate } from '../auth.js';
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, '../../data/presentations');
@@ -13,6 +13,18 @@ const UPLOADS_DIR = path.resolve(__dirname, '../../uploads');
 export const presentationsRouter = Router();
 
 presentationsRouter.use(authenticate);
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function validateId(req: Request, res: Response, next: NextFunction) {
+  if (!UUID_RE.test(req.params.id)) {
+    res.status(400).json({ error: 'Invalid id' });
+    return;
+  }
+  next();
+}
+
+presentationsRouter.use('/:id', validateId);
 
 interface StoredPresentation {
   id: string;
@@ -43,7 +55,6 @@ function stripEditToken(obj: StoredPresentation): Omit<StoredPresentation, 'edit
 }
 
 function checkWriteAccess(existing: StoredPresentation, req: Request, res: Response): boolean {
-  // Share token always grants write access
   const shareToken = req.headers['x-share-token'];
   if (shareToken && shareToken === existing.shareToken) return true;
 
@@ -100,9 +111,10 @@ presentationsRouter.get('/:id', (req, res) => {
 presentationsRouter.post('/', (req, res) => {
   const id = uuidv4();
   const now = new Date().toISOString();
+  const rawTitle = req.body?.title;
   const base = {
     id,
-    title: req.body.title || 'Sans titre',
+    title: typeof rawTitle === 'string' ? rawTitle.slice(0, 200) : 'Sans titre',
     createdAt: now,
     updatedAt: now,
     slides: [{ id: uuidv4(), background: '#ffffff', elements: [] }],
@@ -120,7 +132,6 @@ presentationsRouter.post('/', (req, res) => {
 
   fs.mkdirSync(path.join(UPLOADS_DIR, id), { recursive: true });
   writePresentation(id, presentation);
-  // Return editToken only on creation
   res.status(201).json(presentation);
 });
 
@@ -138,18 +149,21 @@ presentationsRouter.put('/:id', (req, res) => {
   if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
   if (!checkWriteAccess(existing, req, res)) return;
 
+  const { title, slides } = req.body ?? {};
   const now = new Date().toISOString();
   const updated: StoredPresentation = {
-    ...req.body,
-    id: req.params.id,
+    id: existing.id,
+    createdAt: existing.createdAt,
     updatedAt: now,
-    // Preserve auth fields from stored data
+    title: typeof title === 'string' ? title.slice(0, 200) : existing.title,
+    slides: Array.isArray(slides) ? slides : existing.slides,
     ...(existing.ownerId ? { ownerId: existing.ownerId } : {}),
     ...(existing.anonymous ? {
       anonymous: true,
       editToken: existing.editToken,
       expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
     } : {}),
+    ...(existing.shareToken ? { shareToken: existing.shareToken } : {}),
   };
   writePresentation(req.params.id, updated);
   res.json(stripEditToken(updated));
