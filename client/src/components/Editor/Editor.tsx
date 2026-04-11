@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Presentation, Slide, SlideElement, WsMessage } from '../../types';
 import type { Editor as TiptapEditor } from '@tiptap/react';
-import { getPresentation, savePresentation } from '../../api';
+import { getPresentation, savePresentation, fetchShareToken } from '../../api';
+import { storeShareToken } from '../../auth';
 import { useWebSocket } from '../../useWebSocket';
 import { useI18n } from '../../i18n';
 import { useTheme } from '../../theme';
@@ -24,6 +25,7 @@ export function Editor() {
   const [, setEditorTick] = useState(0);
   const [previewPositions, setPreviewPositions] = useState<Array<{ id: string; x: number; y: number; width: number; height: number }> | null>(null);
   const [croppingId, setCroppingId] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
   const commitCropRef = useRef<() => void>(() => {});
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -40,7 +42,31 @@ export function Editor() {
   const clipboardSlide = useRef<Slide | null>(null);
 
   useEffect(() => {
-    if (id) getPresentation(id).then(setPres);
+    if (!id) return;
+    // Extract share token from URL and store it, then clean the URL
+    const params = new URLSearchParams(window.location.search);
+    const shareToken = params.get('share');
+    if (shareToken) {
+      storeShareToken(id, shareToken);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('share');
+      window.history.replaceState(null, '', url.toString());
+    }
+    getPresentation(id).then(setPres);
+  }, [id]);
+
+  const handleShare = useCallback(async () => {
+    if (!id) return;
+    try {
+      const shareToken = await fetchShareToken(id);
+      storeShareToken(id, shareToken);
+      const url = `${window.location.origin}/edit/${id}?share=${shareToken}`;
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      // ignore
+    }
   }, [id]);
 
   const autoSave = useCallback((updated: Presentation) => {
@@ -498,6 +524,17 @@ export function Editor() {
               background: isConnected ? '#22c55e' : '#ef4444',
             }}
           />
+          <button
+            onClick={handleShare}
+            style={{
+              background: 'transparent', border: '1px solid var(--border)',
+              borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer',
+              color: shareCopied ? '#22c55e' : 'var(--text-muted)',
+              transition: 'color 0.2s',
+            }}
+          >
+            {shareCopied ? t('shareCopied') : t('share')}
+          </button>
           <button
             onClick={() => navigate(`/present/${pres.id}`)}
             style={{

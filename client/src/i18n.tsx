@@ -11,6 +11,8 @@ const translations = {
 
   // Top bar
   present: { fr: 'Présenter', en: 'Present' },
+  share: { fr: 'Partager', en: 'Share' },
+  shareCopied: { fr: '✓ Lien copié', en: '✓ Link copied' },
   connected: { fr: 'Connecté (temps réel)', en: 'Connected (real-time)' },
   disconnected: { fr: 'Déconnecté', en: 'Disconnected' },
 

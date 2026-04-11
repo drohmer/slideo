@@ -68,6 +68,10 @@ export interface Presentation {
   createdAt: string;
   updatedAt: string;
   slides: Slide[];
+  ownerId?: string;
+  anonymous?: true;
+  editToken?: string;
+  expiresAt?: string;
 }
 
 export interface PresentationSummary {
@@ -75,6 +79,9 @@ export interface PresentationSummary {
   title: string;
   createdAt: string;
   updatedAt: string;
+  ownerId?: string;
+  anonymous?: true;
+  expiresAt?: string;
 }
 
 // WebSocket messages

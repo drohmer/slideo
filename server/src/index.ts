@@ -6,7 +6,10 @@ import http from 'http';
 import { fileURLToPath } from 'url';
 import { presentationsRouter } from './routes/presentations.js';
 import { uploadsRouter } from './routes/uploads.js';
+import { authRouter } from './routes/auth.js';
 import { setupWebSocket } from './websocket.js';
+import { ensureDefaultUser } from './auth.js';
+import { startCleanupJob } from './cleanup.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
@@ -17,16 +20,23 @@ const UPLOADS_DIR = path.join(ROOT, 'server/uploads');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
+await ensureDefaultUser();
+startCleanupJob(DATA_DIR, UPLOADS_DIR);
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || true,
+  credentials: true,
+}));
 app.use(express.json());
 
 // Serve uploaded files
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 // API routes
+app.use('/api/auth', authRouter);
 app.use('/api/presentations', presentationsRouter);
 app.use('/api/presentations', uploadsRouter);
 
