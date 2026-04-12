@@ -3,11 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import type { Presentation, Slide, SlideElement, WsMessage } from '../../types';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { getPresentation, savePresentation, fetchShareToken } from '../../api';
-import { storeShareToken } from '../../auth';
+import { storeShareToken, getShareToken } from '../../auth';
 import { useWebSocket } from '../../useWebSocket';
 import { useI18n } from '../../i18n';
 import { useTheme } from '../../theme';
-import { exportPresentation } from '../../zipExport';
+import { exportPresentation, exportHtmlPresentation } from '../../zipExport';
+import { EDITOR } from '../../constants';
 import { SlidesSidebar } from './SlidesSidebar';
 import { SlideCanvas } from './SlideCanvas';
 import { PropertiesPanel } from './PropertiesPanel';
@@ -26,6 +27,11 @@ export function Editor() {
   const [previewPositions, setPreviewPositions] = useState<Array<{ id: string; x: number; y: number; width: number; height: number }> | null>(null);
   const [croppingId, setCroppingId] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(() => {
+    if (!id) return null;
+    const token = getShareToken(id);
+    return token ? `${window.location.origin}/edit/${id}?share=${token}` : null;
+  });
   const commitCropRef = useRef<() => void>(() => {});
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -35,7 +41,7 @@ export function Editor() {
   const redoStack = useRef<Presentation[]>([]);
   const skipHistory = useRef(false);
   const lastUndoPush = useRef(0);
-  const UNDO_DEBOUNCE = 300; // ms — rapid changes within this window merge into one undo entry
+  const UNDO_DEBOUNCE = EDITOR.UNDO_DEBOUNCE;
 
   // Clipboard for elements and slides
   const clipboardElements = useRef<SlideElement[]>([]);
@@ -61,6 +67,7 @@ export function Editor() {
       const shareToken = await fetchShareToken(id);
       storeShareToken(id, shareToken);
       const url = `${window.location.origin}/edit/${id}?share=${shareToken}`;
+      setShareUrl(url);
       await navigator.clipboard.writeText(url);
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2000);
@@ -85,7 +92,7 @@ export function Editor() {
           // Merge: don't push a new entry, keep the previous snapshot
         } else {
           undoStack.current.push(prev);
-          if (undoStack.current.length > 50) undoStack.current.shift();
+          if (undoStack.current.length > EDITOR.UNDO_MAX) undoStack.current.shift();
         }
         lastUndoPush.current = now;
         redoStack.current = [];
@@ -300,6 +307,29 @@ export function Editor() {
     updateCurrentSlideElements(newElements);
   }, [pres, currentSlideIndex, updateCurrentSlideElements]);
 
+  const [drawingMode, setDrawingMode] = useState(false);
+  const [drawingColor, setDrawingColor] = useState('#000000');
+  const [drawingWidth, setDrawingWidth] = useState(3);
+
+  const toggleDrawingMode = useCallback(() => {
+    setDrawingMode(prev => !prev);
+    setSelectedIds(new Set());
+    setEditingId(null);
+  }, []);
+
+  const handleDrawingComplete = useCallback((strokes: import('../../types').Stroke[], bounds: { x: number; y: number; width: number; height: number }) => {
+    const slide = pres?.slides[currentSlideIndex];
+    if (!slide || strokes.length === 0) return;
+    const newElements = [...slide.elements, {
+      id: crypto.randomUUID(),
+      type: 'drawing' as const,
+      x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height,
+      strokes, strokeColor: drawingColor, strokeWidth: drawingWidth,
+    }];
+    updateCurrentSlideElements(newElements);
+    setDrawingMode(false);
+  }, [pres, currentSlideIndex, updateCurrentSlideElements, drawingColor, drawingWidth]);
+
   const reorderElement = useCallback((elementId: string, direction: 'up' | 'down' | 'top' | 'bottom') => {
     const slide = pres?.slides[currentSlideIndex];
     if (!slide) return;
@@ -446,6 +476,10 @@ export function Editor() {
         e.preventDefault();
         deleteSelected();
       }
+      if (e.key === 'Escape' && drawingMode) {
+        setDrawingMode(false);
+        return;
+      }
       if (e.key === 'Escape' && croppingId) {
         commitCrop();
         return;
@@ -457,7 +491,7 @@ export function Editor() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIds, editingId, croppingId, deleteSelected, commitCrop, undo, redo, copyElements, pasteElements, duplicateSlide]);
+  }, [selectedIds, editingId, croppingId, drawingMode, deleteSelected, commitCrop, undo, redo, copyElements, pasteElements, duplicateSlide]);
 
   if (!pres) return <div style={{ padding: 40 }}>{t('loading')}</div>;
 
@@ -488,58 +522,72 @@ export function Editor() {
             }}
           />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            onClick={() => setLang(lang === 'fr' ? 'en' : 'fr')}
-            style={{
-              background: 'transparent', border: '1px solid var(--border)',
-              borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--text-muted)',
-            }}
-          >
-            {lang === 'fr' ? 'EN' : 'FR'}
-          </button>
-          <button
-            onClick={() => setMode(mode === 'light' ? 'dark' : 'light')}
-            title={mode === 'light' ? t('darkMode') : t('lightMode')}
-            style={{
-              background: 'transparent', border: '1px solid var(--border)',
-              borderRadius: 4, padding: '3px 8px', fontSize: 13, cursor: 'pointer', color: 'var(--text-muted)',
-            }}
-          >
-            {mode === 'light' ? '🌙' : '☀️'}
-          </button>
-          <button
-            onClick={() => exportPresentation(pres)}
-            style={{
-              background: 'transparent', border: '1px solid var(--border)',
-              borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--text-muted)',
-            }}
-          >
-            {t('exportZip')}
-          </button>
-          <span
-            title={isConnected ? t('connected') : t('disconnected')}
-            style={{
-              width: 8, height: 8, borderRadius: '50%',
-              background: isConnected ? '#22c55e' : '#ef4444',
-            }}
-          />
-          <button
-            onClick={handleShare}
-            style={{
-              background: 'transparent', border: '1px solid var(--border)',
-              borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer',
-              color: shareCopied ? '#22c55e' : 'var(--text-muted)',
-              transition: 'color 0.2s',
-            }}
-          >
-            {shareCopied ? t('shareCopied') : t('share')}
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Settings group */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button
+              onClick={() => setLang(lang === 'fr' ? 'en' : 'fr')}
+              style={topBarBtn}
+            >
+              {lang === 'fr' ? 'EN' : 'FR'}
+            </button>
+            <button
+              onClick={() => setMode(mode === 'light' ? 'dark' : 'light')}
+              title={mode === 'light' ? t('darkMode') : t('lightMode')}
+              style={{ ...topBarBtn, fontSize: 13 }}
+            >
+              {mode === 'light' ? '🌙' : '☀️'}
+            </button>
+          </div>
+          <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
+          {/* Export group */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button onClick={() => exportPresentation(pres)} style={topBarBtn}>
+              {t('exportZip')}
+            </button>
+            <button onClick={() => exportHtmlPresentation(pres)} style={topBarBtn}>
+              {t('exportHtml')}
+            </button>
+          </div>
+          <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
+          {/* Share group */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {shareUrl && (
+              <input
+                readOnly
+                value={shareUrl}
+                title={shareUrl}
+                onClick={async e => {
+                  e.currentTarget.select();
+                  await navigator.clipboard.writeText(shareUrl);
+                  setShareCopied(true);
+                  setTimeout(() => setShareCopied(false), 2000);
+                }}
+                style={{
+                  width: 200, fontSize: 11, padding: '4px 6px',
+                  background: 'var(--bg)', border: '1px solid var(--border)',
+                  borderRadius: 4, color: 'var(--text-muted)', cursor: 'pointer',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}
+              />
+            )}
+            <button
+              onClick={handleShare}
+              style={{
+                ...topBarBtn,
+                color: shareCopied ? '#22c55e' : 'var(--text-muted)',
+                transition: 'color 0.2s',
+              }}
+            >
+              {shareCopied ? t('shareCopied') : t('share')}
+            </button>
+          </div>
           <button
             onClick={() => navigate(`/present/${pres.id}`)}
             style={{
-              background: 'var(--accent)', border: 'none', borderRadius: 4,
-              padding: '6px 16px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              background: 'var(--accent)', border: 'none', borderRadius: 6,
+              padding: '7px 18px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              marginLeft: 4,
             }}
           >
             {t('present')}
@@ -591,6 +639,10 @@ export function Editor() {
           activeEditor={activeEditor}
           onToggleBoldItalic={(key: string) => toggleBoldItalicRef.current(key)}
           videoRefs={videoRefs}
+          drawingMode={drawingMode}
+          drawingColor={drawingColor}
+          drawingWidth={drawingWidth}
+          onDrawingComplete={handleDrawingComplete}
         />
 
         <PropertiesPanel
@@ -602,6 +654,12 @@ export function Editor() {
           onPreview={setPreviewPositions}
           activeEditor={activeEditor}
           onAddText={handleAddText}
+          onAddDrawing={toggleDrawingMode}
+          drawingMode={drawingMode}
+          drawingColor={drawingColor}
+          drawingWidth={drawingWidth}
+          onDrawingColorChange={setDrawingColor}
+          onDrawingWidthChange={setDrawingWidth}
           croppingId={croppingId}
           onStartCropping={setCroppingId}
           onStopCropping={commitCrop}
@@ -616,6 +674,22 @@ export function Editor() {
           videoRefs={videoRefs}
         />
       </div>
+      {/* Connection status indicator */}
+      <span
+        title={isConnected ? t('connected') : t('disconnected')}
+        style={{
+          position: 'fixed', bottom: 12, right: 16,
+          width: 10, height: 10, borderRadius: '50%',
+          background: isConnected ? '#22c55e' : '#ef4444',
+          zIndex: 1000,
+        }}
+      />
     </div>
   );
 }
+
+const topBarBtn: React.CSSProperties = {
+  background: 'transparent', border: '1px solid var(--border)',
+  borderRadius: 5, padding: '5px 10px', fontSize: 12, cursor: 'pointer',
+  color: 'var(--text-muted)', minHeight: 30,
+};

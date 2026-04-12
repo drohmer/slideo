@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Slide, SlideElement } from '../../types';
 import { useI18n } from '../../i18n';
+import { CANVAS } from '../../constants';
 
 
 interface Props {
@@ -35,7 +36,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
             onClick={() => onSelect(i)}
             title={`${t('slideN')} ${i + 1}`}
             style={{
-              width: 22, height: 14, borderRadius: 2, cursor: 'pointer',
+              width: 26, height: 16, borderRadius: 2, cursor: 'pointer',
               background: slide.background,
               border: i === currentIndex ? '2px solid var(--accent)' : '1px solid var(--border)',
             }}
@@ -45,7 +46,7 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
           onClick={onAdd}
           title={t('addSlide')}
           style={{
-            width: 22, height: 14, borderRadius: 2, cursor: 'pointer',
+            width: 26, height: 16, borderRadius: 2, cursor: 'pointer',
             border: '1px dashed var(--border)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 10, opacity: 0.3,
@@ -86,17 +87,18 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
                 border: i === currentIndex ? '2px solid var(--accent)' : '1px solid var(--border)',
                 background: i === currentIndex ? 'var(--accent-light)' : 'var(--surface)',
                 borderRadius: 4, padding: 4, marginBottom: 6, cursor: 'pointer', position: 'relative',
+                overflow: 'hidden',
               }}
             >
               <SlideThumbnail slide={slide} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 3 }}>
                 <span style={{ fontSize: 9, opacity: 0.6 }}>{i + 1}</span>
-                <div style={{ display: 'flex', gap: 4 }}>
+                <div style={{ display: 'flex', gap: 2 }}>
                   {i === currentIndex && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
                       title={`${t('duplicateSlide')} (Ctrl+D)`}
-                      style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 10, padding: 0 }}
+                      style={slideActionBtn}
                     >
                       ⧉
                     </button>
@@ -104,9 +106,10 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
                   {slides.length > 1 && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onDelete(i); }}
-                      style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 10, padding: 0 }}
+                      title={t('delete')}
+                      style={{ ...slideActionBtn, color: 'var(--danger)' }}
                     >
-                      x
+                      ×
                     </button>
                   )}
                 </div>
@@ -130,11 +133,9 @@ export function SlidesSidebar({ slides, currentIndex, onSelect, onAdd, onDelete,
   );
 }
 
-const THUMB_W = 110;
-const THUMB_H = 62;
-const CANVAS_W = 960;
-const CANVAS_H = 540;
-const THUMB_SCALE = THUMB_W / CANVAS_W;
+const THUMB_W = 106;
+const THUMB_H = Math.round(THUMB_W * CANVAS.HEIGHT / CANVAS.WIDTH);
+const THUMB_SCALE = THUMB_W / CANVAS.WIDTH;
 
 function SlideThumbnail({ slide }: { slide: Slide }) {
   return (
@@ -143,7 +144,7 @@ function SlideThumbnail({ slide }: { slide: Slide }) {
       overflow: 'hidden', position: 'relative', background: slide.background,
     }}>
       <div style={{
-        width: CANVAS_W, height: CANVAS_H,
+        width: CANVAS.WIDTH, height: CANVAS.HEIGHT,
         transform: `scale(${THUMB_SCALE})`,
         transformOrigin: 'top left',
         position: 'absolute', top: 0, left: 0,
@@ -195,6 +196,27 @@ function ThumbnailElement({ element }: { element: SlideElement }) {
     );
   }
 
+  // drawing
+  if (element.type === 'drawing') {
+    return (
+      <div style={style}>
+        <svg viewBox={`0 0 ${element.width} ${element.height}`} style={{ width: '100%', height: '100%' }}>
+          {element.strokes.map((s, i) => (
+            <path
+              key={i}
+              d={s.points.map((p, j) => `${j === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={s.width}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+        </svg>
+      </div>
+    );
+  }
+
   // text
   return (
     <div style={{
@@ -208,3 +230,11 @@ function ThumbnailElement({ element }: { element: SlideElement }) {
     </div>
   );
 }
+
+const slideActionBtn: React.CSSProperties = {
+  background: 'none', border: '1px solid var(--border)', borderRadius: 3,
+  color: 'var(--accent)', cursor: 'pointer', fontSize: 12,
+  padding: '2px 6px', minWidth: 24, minHeight: 22,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  lineHeight: 1,
+};
