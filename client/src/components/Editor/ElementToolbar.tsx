@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { SlideElement, TextElement, VideoElement } from '../../types';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { useI18n } from '../../i18n';
-
-const FRAME_STEP = 1 / 30;
+import { VIDEO } from '../../constants';
 
 interface Props {
   element: SlideElement;
@@ -118,7 +117,6 @@ function VideoToolbar({ element, videoRefs }: {
 }) {
   const { t } = useI18n();
   const [playing, setPlaying] = useState(false);
-  const rafRef = useRef<number>(0);
 
   const getVideo = useCallback(
     () => videoRefs.current.get(element.id) ?? null,
@@ -136,7 +134,6 @@ function VideoToolbar({ element, videoRefs }: {
     return () => {
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
-      cancelAnimationFrame(rafRef.current);
     };
   }, [getVideo]);
 
@@ -156,9 +153,9 @@ function VideoToolbar({ element, videoRefs }: {
 
   return (
     <>
-      <ToolBtn label="⏮" title={t('videoStepBack')} onClick={() => step(-FRAME_STEP)} />
-      <ToolBtn label={playing ? '⏸' : '▶'} title={playing ? t('videoStop') : 'Play'} onClick={togglePlay} />
-      <ToolBtn label="⏭" title={t('videoStepForward')} onClick={() => step(FRAME_STEP)} />
+      <ToolBtn label="⏮" title={t('videoStepBack')} onClick={() => step(-VIDEO.FRAME_STEP)} />
+      <ToolBtn label={playing ? '⏸' : '▶'} title={playing ? t('videoPause') : t('videoPlay')} onClick={togglePlay} />
+      <ToolBtn label="⏭" title={t('videoStepForward')} onClick={() => step(VIDEO.FRAME_STEP)} />
     </>
   );
 }

@@ -819,11 +819,7 @@ export function SlideCanvas({
                 disableDrag={isElementEditing || isCroppingThis || !!groupResizeOverrides}
                 disableResize={isElementEditing || isMulti || isCroppingThis || !isSelected}
                 lockAspectRatio={el.type === 'image' || el.type === 'video'}
-                liveOverride={
-                  groupResizeOverrides && selectedIds.has(el.id)
-                    ? groupResizeOverrides.get(el.id)
-                    : undefined
-                }
+                liveOverride={groupResizeOverrides?.get(el.id)}
                 snapFn={makeSnapFn(el.id)}
                 onDragStart={() => {
                   if (!isSelected) {

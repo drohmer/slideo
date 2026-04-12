@@ -399,8 +399,7 @@ function formatTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-const SPEED_OPTIONS = [0.25, 0.5, 1, 1.5, 2];
-const FRAME_STEP = 1 / 30;
+import { VIDEO } from '../../constants';
 
 function VideoProps({ element, onUpdate, videoRefs, onCaptureFrame }: { element: VideoElement; onUpdate: (el: SlideElement) => void; videoRefs?: React.MutableRefObject<Map<string, HTMLVideoElement>>; onCaptureFrame?: (blob: Blob, width: number, height: number) => void }) {
   const { t } = useI18n();
@@ -507,12 +506,12 @@ function VideoProps({ element, onUpdate, videoRefs, onCaptureFrame }: { element:
         <div style={{ marginBottom: 8 }}>
           {/* Playback controls row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
-            <button onClick={() => handleStep(-FRAME_STEP)} style={btnStyle} title={t('videoStepBack')}>⏮</button>
-            <button onClick={togglePlay} style={btnStyle} title={playing ? t('videoStop') : undefined}>
+            <button onClick={() => handleStep(-VIDEO.FRAME_STEP)} style={btnStyle} title={t('videoStepBack')}>⏮</button>
+            <button onClick={togglePlay} style={btnStyle} title={playing ? t('videoPause') : t('videoPlay')}>
               {playing ? '⏸' : '▶'}
             </button>
             <button onClick={handleStop} style={btnStyle} title={t('videoStop')}>⏹</button>
-            <button onClick={() => handleStep(FRAME_STEP)} style={btnStyle} title={t('videoStepForward')}>⏭</button>
+            <button onClick={() => handleStep(VIDEO.FRAME_STEP)} style={btnStyle} title={t('videoStepForward')}>⏭</button>
             <span style={{ fontSize: 9, opacity: 0.6, whiteSpace: 'nowrap', marginLeft: 2 }}>
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
@@ -534,7 +533,7 @@ function VideoProps({ element, onUpdate, videoRefs, onCaptureFrame }: { element:
           {/* Speed buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
             <span style={{ fontSize: 10, opacity: 0.5, marginRight: 2 }}>{t('videoSpeed')}</span>
-            {SPEED_OPTIONS.map(rate => (
+            {VIDEO.SPEED_OPTIONS.map(rate => (
               <button
                 key={rate}
                 onClick={() => handleSpeedChange(rate)}
@@ -546,7 +545,7 @@ function VideoProps({ element, onUpdate, videoRefs, onCaptureFrame }: { element:
                   borderColor: playbackRate === rate ? 'var(--accent)' : 'var(--border)',
                 }}
               >
-                {rate === 1 ? '1×' : rate < 1 ? `${rate}×` : `${rate}×`}
+                {`${rate}×`}
               </button>
             ))}
           </div>

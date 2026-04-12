@@ -73,6 +73,8 @@ const translations = {
   muted: { fr: 'Muet', en: 'Muted' },
   loopBadge: { fr: 'boucle', en: 'loop' },
   videoStop: { fr: 'Arrêter', en: 'Stop' },
+  videoPause: { fr: 'Pause', en: 'Pause' },
+  videoPlay: { fr: 'Lecture', en: 'Play' },
   videoSpeed: { fr: 'Vitesse', en: 'Speed' },
   videoStepBack: { fr: 'Image précédente', en: 'Step back' },
   videoStepForward: { fr: 'Image suivante', en: 'Step forward' },

@@ -297,20 +297,23 @@ export function Editor() {
   const handleCaptureFrame = useCallback(async (blob: Blob, vidW: number, vidH: number) => {
     const slide = pres?.slides[currentSlideIndex];
     if (!slide || !pres) return;
-    const file = new File([blob], `frame-${Date.now()}.png`, { type: 'image/png' });
-    const result = await uploadFile(pres.id, file);
-    // Scale to fit canvas proportionally (max 480px wide)
-    const maxW = 480;
-    const scale = Math.min(1, maxW / vidW);
-    const w = Math.round(vidW * scale);
-    const h = Math.round(vidH * scale);
-    const newElements = [...slide.elements, {
-      id: crypto.randomUUID(),
-      type: 'image' as const,
-      src: result.path,
-      x: 50, y: 50, width: w, height: h,
-    }];
-    updateCurrentSlideElements(newElements);
+    try {
+      const file = new File([blob], `frame-${Date.now()}.png`, { type: 'image/png' });
+      const result = await uploadFile(pres.id, file);
+      const maxW = 480;
+      const scale = Math.min(1, maxW / vidW);
+      const w = Math.round(vidW * scale);
+      const h = Math.round(vidH * scale);
+      const newElements = [...slide.elements, {
+        id: crypto.randomUUID(),
+        type: 'image' as const,
+        src: result.path,
+        x: 50, y: 50, width: w, height: h,
+      }];
+      updateCurrentSlideElements(newElements);
+    } catch {
+      // Upload failed — silently ignore (no crash)
+    }
   }, [pres, currentSlideIndex, updateCurrentSlideElements]);
 
   const handleAddText = useCallback(() => {
