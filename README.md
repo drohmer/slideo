@@ -1,91 +1,129 @@
 # Slideo
 
-Outil de presentation web centre sur la video. Concu pour projeter des videos comparatives cote a cote, en boucle, lors de reunions ou conferences.
+Éditeur de présentations orienté vidéo — interface web, temps réel, export autonome.
 
-Google Slides gere mal les videos (pas d'auto-play, pas de boucle, hebergement impose). Slideo resout ca.
+Conçu pour projeter des vidéos comparatives côte à côte, en boucle, lors de réunions ou conférences. Google Slides gère mal les vidéos (pas d'auto-play, pas de boucle, hébergement imposé). Slideo résout ça.
 
-## Fonctionnalites
+## Fonctionnalités
 
-**Editeur**
-- Canvas 16:9 avec drag & drop d'elements (video, image, texte)
-- Videos en boucle avec auto-play
-- Editeur de texte riche (TipTap) : gras, italique, taille, couleur
-- Crop interactif sur les videos et images
-- Snap magnetique sur grilles, bords et centres d'elements (Alt pour toggle)
-- Multi-selection (Shift+clic, rectangle de selection)
-- Alignement, distribution, egalisation de taille entre elements
-- Reordonnancement z-index (avant, arriere, monter, descendre)
-- Zoom (Ctrl+molette, 0.25x-3x) et panning (Ctrl+drag)
+**Éditeur**
+- Canvas 16:9 avec drag & drop d'éléments (vidéo, image, texte, dessin libre)
+- Drag & resize avec snap magnétique (bords, centres, canvas) et contrainte d'axe (Shift)
+- **Redimensionnement de groupe** : sélectionner plusieurs éléments, tirer une des 8 poignées de la bounding box
+- Crop interactif image/vidéo
+- Alignement multi-sélection (bords, centres, égalisation de taille)
+- Reordonnancement z-index (avant, arrière, monter, descendre)
 - Undo/Redo (Ctrl+Z / Ctrl+Y) avec historique debounce
-- Copier/Coller elements (Ctrl+C / Ctrl+V), duplication de slides (Ctrl+D)
+- Copier/Coller éléments (Ctrl+C / Ctrl+V), duplication de slides (Ctrl+D)
 - Drag & drop de fichiers directement sur le canvas
+- Zoom (Ctrl+molette, 0.25×–3×) et pan (clic milieu+drag)
+- Éditeur de texte riche (TipTap) : gras, italique, taille, couleur
 
-**Presentation**
-- Mode plein ecran avec navigation clavier (fleches, Entree)
-- Synchronisation temps reel entre clients via WebSocket
+**Vidéo**
+- Contrôles dans le panneau propriétés : ⏮ ▶/⏸ ⏹ ⏭, scrubber, vitesse (0.25× à 2×)
+- Contrôles rapides dans la toolbar flottante (pas image par image)
+- Capture de frame : extrait l'image courante → nouvel élément image sur le slide
+- Options : loop, autoplay, muted
 
-**Fichiers & Donnees**
-- Auto-save (debounce 1s)
-- Export/import de presentations en `.zip` (JSON + medias)
-- Stockage JSON + filesystem (zero dependance BDD)
-- Formats supportes : MP4, WebM, MKV, MOV, AVI + formats image
+**Présentation**
+- Mode plein écran, scale adaptatif
+- Navigation : flèches, Espace, swipe tactile, tap zones (30% gauche/droite), dots
+- Lecture vidéo automatique au changement de slide
+
+**Export / Import**
+- Export `.zip` (JSON + médias)
+- Export HTML autonome (player JS vanilla, swipe, clavier, dots — aucune dépendance)
+- Import `.zip`
+
+**Collaboration & Auth**
+- Synchronisation temps réel via WebSocket
+- Comptes persistants (JWT) + accès anonyme temporaire (expiration 24h)
+- Partage par lien avec token
 
 **Interface**
-- Theme clair/sombre (CSS variables)
+- Thème clair/sombre (CSS variables)
 - Internationalisation FR/EN
 
 ## Stack
 
-- **Frontend** : React 18, TypeScript, Vite, TipTap, JSZip
-- **Backend** : Node.js, Express, Multer, ws
-- **Pas de BDD** : un fichier `.json` par presentation
+| Côté | Technologies |
+|------|-------------|
+| Client | React 18, TypeScript, Vite, React Router, TipTap, JSZip |
+| Serveur | Express, TypeScript, ws (WebSocket), multer, JWT + bcrypt |
+| Stockage | Fichiers JSON (`server/data/`), médias dans `server/uploads/` — zéro dépendance BDD |
 
-## Installation
-
-```bash
-# Client
-cd client && npm install
-
-# Serveur
-cd server && npm install
-```
-
-## Lancement
+## Démarrage local
 
 ```bash
-# Terminal 1 - serveur (port 3001)
-cd server && npm run dev
+# Variables d'environnement serveur
+cat > server/.env <<EOF
+JWT_SECRET=changeme
+AUTH_USERNAME=admin
+AUTH_PASSWORD=changeme
+PORT=3001
+EOF
 
-# Terminal 2 - client (port 5173)
-cd client && npm run dev
+# Client (dev) — port 5173
+cd client && npm install && npm run dev
+
+# Serveur (dev) — port 3001
+cd server && npm install && npm run dev
 ```
 
-Ouvrir http://localhost:5173
+## Build production
+
+```bash
+cd client && npm run build   # → client/dist/
+cd server && npm run build   # → server/dist/
+node server/dist/index.js    # sert client/dist/ en statique + API sur :3001
+```
+
+## Déploiement
+
+```bash
+bash deploy.sh
+```
+
+Synchronise via rsync sur `damien-scaleway`, build client + serveur à distance, redémarre le service systemd `slideo`.
 
 ## Structure
 
 ```
-client/           Frontend React + Vite
-  src/
-    components/
-      Home/       Liste des presentations, import zip
-      Editor/     Canvas, sidebar, panneau proprietes, crop, snap
-      Presenter/  Mode presentation plein ecran
-      Elements/   Composants video, image, texte (TipTap)
-    api.ts        Client API REST
-    useWebSocket.ts  Hook WebSocket temps reel
-    i18n.tsx      Traductions FR/EN
-    theme.tsx     Gestion theme clair/sombre
-    zipExport.ts  Export/import zip
-    types.ts      Types TypeScript
+client/src/
+  components/
+    Home/         Liste des présentations, import zip
+    Editor/       Canvas, sidebar, panneau propriétés, crop, snap, group resize
+    Presenter/    Mode présentation plein écran
+    Elements/     Composants vidéo, image, texte (TipTap), dessin (SVG)
+  api.ts          Client API REST
+  useWebSocket.ts Hook WebSocket temps réel
+  i18n.tsx        Traductions FR/EN
+  theme.tsx       Thème clair/sombre
+  zipExport.ts    Export/import zip + HTML autonome
+  types.ts        Types TypeScript (SlideElement, Slide, Presentation, WsMessage)
+  constants.ts    CANVAS, ZOOM, SNAP, EDITOR, MEDIA
 
-server/           Backend Express
-  src/
-    index.ts      Point d'entree
-    websocket.ts  Gestion WebSocket (rooms, broadcast)
-    routes/
-      presentations.ts  CRUD presentations
-      uploads.ts        Upload fichiers
-  data/           Metadonnees JSON (cree au runtime)
-  uploads/        Fichiers uploades (cree au runtime)
+server/src/
+  index.ts        Point d'entrée (Express + WebSocket)
+  auth.ts         JWT, bcrypt, middlewares authenticate/requireAuth
+  validation.ts   validateId middleware (UUID v4)
+  cleanup.ts      Expiration présentations anonymes (cron 1h)
+  routes/
+    presentations.ts  CRUD + share token
+    uploads.ts        Upload fichiers (multer, 500 MB)
+    auth.ts           Login, register, logout, /me
 ```
+
+## Raccourcis clavier
+
+| Raccourci | Action |
+|-----------|--------|
+| Ctrl+Z / Ctrl+Y | Undo / Redo |
+| Ctrl+C / Ctrl+V | Copier / Coller élément |
+| Ctrl+D | Dupliquer slide courant |
+| Delete | Supprimer sélection |
+| Escape | Désélectionner / quitter édition |
+| B / I | Gras / Italique (texte sélectionné) |
+| Shift+drag | Contraindre déplacement sur un axe |
+| Ctrl+scroll | Zoom canvas |
+| Clic milieu+drag | Pan canvas |
