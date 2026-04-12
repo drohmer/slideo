@@ -72,6 +72,18 @@ const translations = {
   autoplay: { fr: 'Auto-play', en: 'Auto-play' },
   muted: { fr: 'Muet', en: 'Muted' },
   loopBadge: { fr: 'boucle', en: 'loop' },
+  videoStop: { fr: 'Arrêter', en: 'Stop' },
+  videoSpeed: { fr: 'Vitesse', en: 'Speed' },
+  videoStepBack: { fr: 'Image précédente', en: 'Step back' },
+  videoStepForward: { fr: 'Image suivante', en: 'Step forward' },
+  captureFrame: { fr: 'Capturer cette image', en: 'Capture frame' },
+
+  // Drawing
+  drawing: { fr: 'Dessin', en: 'Drawing' },
+  addDrawing: { fr: '+ Dessin', en: '+ Drawing' },
+  strokeColor: { fr: 'Couleur du trait', en: 'Stroke color' },
+  strokeWidth: { fr: 'Épaisseur', en: 'Stroke width' },
+  clearDrawing: { fr: 'Effacer le dessin', en: 'Clear drawing' },
 
   // Text
   text: { fr: 'Texte', en: 'Text' },
@@ -101,7 +113,8 @@ const translations = {
   modifiedOn: { fr: 'Modifié le', en: 'Modified on' },
 
   // Export/Import
-  exportZip: { fr: 'Exporter .zip', en: 'Export .zip' },
+  exportZip: { fr: 'Export .zip', en: 'Export .zip' },
+  exportHtml: { fr: 'Export HTML', en: 'Export HTML' },
   importZip: { fr: 'Importer .zip', en: 'Import .zip' },
   importing: { fr: 'Import en cours...', en: 'Importing...' },
 

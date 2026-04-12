@@ -1,4 +1,4 @@
-import { useRef, useCallback, type ReactNode, type PointerEvent as ReactPointerEvent, type CSSProperties } from 'react';
+import { useRef, useCallback, useLayoutEffect, type ReactNode, type PointerEvent as ReactPointerEvent, type CSSProperties } from 'react';
 
 interface Props {
   x: number;
@@ -21,11 +21,12 @@ interface Props {
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   style?: CSSProperties;
+  liveOverride?: { x: number; y: number; width: number; height: number };
 }
 
 type ResizeDir = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
 
-const HANDLE_SIZE = 8;
+const HANDLE_SIZE = 12;
 
 const CURSORS: Record<ResizeDir, string> = {
   n: 'ns-resize', s: 'ns-resize',
@@ -42,6 +43,7 @@ export function DraggableElement({
   onResize, onResizeStop,
   onClick, onDoubleClick,
   onMouseEnter, onMouseLeave,
+  liveOverride,
 }: Props) {
   const elRef = useRef<HTMLDivElement>(null);
   const dragMoved = useRef(false);
@@ -57,6 +59,12 @@ export function DraggableElement({
     el.style.width = `${lw}px`;
     el.style.height = `${lh}px`;
   }, []);
+
+  // Apply group resize override from parent
+  useLayoutEffect(() => {
+    if (!liveOverride) return;
+    applyLive(liveOverride.x, liveOverride.y, liveOverride.width, liveOverride.height);
+  }, [liveOverride, applyLive]);
 
   // --- DRAG ---
   const handlePointerDown = useCallback((e: ReactPointerEvent) => {

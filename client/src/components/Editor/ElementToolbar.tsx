@@ -1,6 +1,9 @@
-import type { SlideElement, TextElement } from '../../types';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type { SlideElement, TextElement, VideoElement } from '../../types';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { useI18n } from '../../i18n';
+
+const FRAME_STEP = 1 / 30;
 
 interface Props {
   element: SlideElement;
@@ -10,9 +13,10 @@ interface Props {
   isCropping: boolean;
   activeEditor: TiptapEditor | null;
   onToggleBoldItalic?: (key: string) => void;
+  videoRefs?: React.MutableRefObject<Map<string, HTMLVideoElement>>;
 }
 
-export function ElementToolbar({ element, onUpdate, onDelete, onStartCropping, isCropping, activeEditor, onToggleBoldItalic }: Props) {
+export function ElementToolbar({ element, onUpdate, onDelete, onStartCropping, isCropping, activeEditor, onToggleBoldItalic, videoRefs }: Props) {
   const { t } = useI18n();
   return (
     <div
@@ -20,13 +24,13 @@ export function ElementToolbar({ element, onUpdate, onDelete, onStartCropping, i
         position: 'absolute',
         bottom: '100%',
         left: 0,
-        marginBottom: 4,
+        marginBottom: 6,
         display: 'flex',
         alignItems: 'center',
-        gap: 2,
-        padding: '2px 4px',
+        gap: 3,
+        padding: '3px 6px',
         background: 'var(--surface)',
-        borderRadius: 4,
+        borderRadius: 6,
         boxShadow: 'var(--shadow)',
         zIndex: 300,
         whiteSpace: 'nowrap',
@@ -36,6 +40,12 @@ export function ElementToolbar({ element, onUpdate, onDelete, onStartCropping, i
       onClick={e => e.stopPropagation()}
     >
       {element.type === 'text' && <TextToolbar element={element} onUpdate={onUpdate} activeEditor={activeEditor} onToggleBoldItalic={onToggleBoldItalic} />}
+      {element.type === 'video' && videoRefs && (
+        <>
+          <VideoToolbar element={element} videoRefs={videoRefs} />
+          <Sep />
+        </>
+      )}
       {(element.type === 'image' || element.type === 'video') && (
         <MediaToolbar onStartCropping={onStartCropping} isCropping={isCropping} />
       )}
@@ -61,7 +71,7 @@ function TextToolbar({ element, onUpdate, activeEditor, onToggleBoldItalic }: {
         title={t('fontSmaller')}
         onClick={() => onUpdate({ ...element, fontSize: Math.max(8, element.fontSize - 2) })}
       />
-      <span style={{ fontSize: 10, minWidth: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
+      <span style={{ fontSize: 10, minWidth: 22, textAlign: 'center', color: 'var(--text-muted)' }}>
         {element.fontSize}
       </span>
       <ToolBtn
@@ -96,8 +106,59 @@ function TextToolbar({ element, onUpdate, activeEditor, onToggleBoldItalic }: {
         value={element.color}
         onChange={e => onUpdate({ ...element, color: e.target.value })}
         title={t('color')}
-        style={{ width: 20, height: 20, border: '1px solid var(--border)', borderRadius: 3, padding: 0, cursor: 'pointer', background: 'transparent' }}
+        style={{ width: 26, height: 26, border: '1px solid var(--border)', borderRadius: 4, padding: 0, cursor: 'pointer', background: 'transparent' }}
       />
+    </>
+  );
+}
+
+function VideoToolbar({ element, videoRefs }: {
+  element: VideoElement;
+  videoRefs: React.MutableRefObject<Map<string, HTMLVideoElement>>;
+}) {
+  const { t } = useI18n();
+  const [playing, setPlaying] = useState(false);
+  const rafRef = useRef<number>(0);
+
+  const getVideo = useCallback(
+    () => videoRefs.current.get(element.id) ?? null,
+    [videoRefs, element.id],
+  );
+
+  useEffect(() => {
+    const video = getVideo();
+    if (!video) return;
+    setPlaying(!video.paused);
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    video.addEventListener('play', onPlay);
+    video.addEventListener('pause', onPause);
+    return () => {
+      video.removeEventListener('play', onPlay);
+      video.removeEventListener('pause', onPause);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [getVideo]);
+
+  const togglePlay = () => {
+    const v = getVideo();
+    if (!v) return;
+    if (v.paused) v.play();
+    else v.pause();
+  };
+
+  const step = (delta: number) => {
+    const v = getVideo();
+    if (!v) return;
+    v.pause();
+    v.currentTime = Math.max(0, Math.min(v.duration || 0, v.currentTime + delta));
+  };
+
+  return (
+    <>
+      <ToolBtn label="⏮" title={t('videoStepBack')} onClick={() => step(-FRAME_STEP)} />
+      <ToolBtn label={playing ? '⏸' : '▶'} title={playing ? t('videoStop') : 'Play'} onClick={togglePlay} />
+      <ToolBtn label="⏭" title={t('videoStepForward')} onClick={() => step(FRAME_STEP)} />
     </>
   );
 }
@@ -128,14 +189,19 @@ function ToolBtn({ label, title, onClick, active, bold, italic }: {
       style={{
         background: active ? 'var(--accent-light)' : 'transparent',
         border: 'none',
-        borderRadius: 3,
-        padding: '2px 5px',
-        fontSize: 11,
+        borderRadius: 4,
+        padding: '4px 8px',
+        fontSize: 12,
         cursor: 'pointer',
         color: active ? 'var(--accent)' : 'var(--text)',
         fontWeight: bold ? 700 : 400,
         fontStyle: italic ? 'italic' : 'normal',
         lineHeight: 1.2,
+        minWidth: 28,
+        minHeight: 26,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
     >
       {label}
@@ -144,5 +210,5 @@ function ToolBtn({ label, title, onClick, active, bold, italic }: {
 }
 
 function Sep() {
-  return <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />;
+  return <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 3px' }} />;
 }

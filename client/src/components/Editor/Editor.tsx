@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Presentation, Slide, SlideElement, WsMessage } from '../../types';
 import type { Editor as TiptapEditor } from '@tiptap/react';
-import { getPresentation, savePresentation, fetchShareToken } from '../../api';
+import { getPresentation, savePresentation, fetchShareToken, uploadFile } from '../../api';
 import { storeShareToken, getShareToken } from '../../auth';
 import { useWebSocket } from '../../useWebSocket';
 import { useI18n } from '../../i18n';
@@ -293,6 +293,25 @@ export function Editor() {
       }
     }
   }, [currentSlideIndex, pres, selectedIds, updatePres, sendThrottled]);
+
+  const handleCaptureFrame = useCallback(async (blob: Blob, vidW: number, vidH: number) => {
+    const slide = pres?.slides[currentSlideIndex];
+    if (!slide || !pres) return;
+    const file = new File([blob], `frame-${Date.now()}.png`, { type: 'image/png' });
+    const result = await uploadFile(pres.id, file);
+    // Scale to fit canvas proportionally (max 480px wide)
+    const maxW = 480;
+    const scale = Math.min(1, maxW / vidW);
+    const w = Math.round(vidW * scale);
+    const h = Math.round(vidH * scale);
+    const newElements = [...slide.elements, {
+      id: crypto.randomUUID(),
+      type: 'image' as const,
+      src: result.path,
+      x: 50, y: 50, width: w, height: h,
+    }];
+    updateCurrentSlideElements(newElements);
+  }, [pres, currentSlideIndex, updateCurrentSlideElements]);
 
   const handleAddText = useCallback(() => {
     const slide = pres?.slides[currentSlideIndex];
@@ -627,6 +646,7 @@ export function Editor() {
           onSelectMultiple={handleSelectMultiple}
           onUpdateElements={updateCurrentSlideElements}
           onUpdateElement={updateElement}
+          onUpdateMultiple={updateElements}
           onMoveGroup={moveGroup}
           onStartEditing={setEditingId}
           onStopEditing={() => setEditingId(null)}
@@ -672,6 +692,7 @@ export function Editor() {
           }}
           onToggleBoldItalic={(key: string) => toggleBoldItalicRef.current(key)}
           videoRefs={videoRefs}
+          onCaptureFrame={handleCaptureFrame}
         />
       </div>
       {/* Connection status indicator */}

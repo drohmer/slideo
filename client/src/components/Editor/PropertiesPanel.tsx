@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Editor as TiptapEditor } from '@tiptap/react';
-import { getVisibleRect, type SlideElement, type VideoElement, type TextElement } from '../../types';
+import { getVisibleRect, type SlideElement, type VideoElement, type TextElement, type DrawingElement } from '../../types';
 import { useI18n } from '../../i18n';
 
 type PreviewPos = Array<{ id: string; x: number; y: number; width: number; height: number }>;
@@ -12,6 +12,12 @@ interface Props {
   onDelete: () => void;
   activeEditor: TiptapEditor | null;
   onAddText?: () => void;
+  onAddDrawing?: () => void;
+  drawingMode?: boolean;
+  drawingColor?: string;
+  drawingWidth?: number;
+  onDrawingColorChange?: (color: string) => void;
+  onDrawingWidthChange?: (width: number) => void;
   onPreview?: (positions: PreviewPos | null) => void;
   onReorder?: (elementId: string, direction: 'up' | 'down' | 'top' | 'bottom') => void;
   croppingId?: string | null;
@@ -21,9 +27,10 @@ interface Props {
   currentSlideBg?: string;
   onToggleBoldItalic?: (key: string) => void;
   videoRefs?: React.MutableRefObject<Map<string, HTMLVideoElement>>;
+  onCaptureFrame?: (blob: Blob, width: number, height: number) => void;
 }
 
-export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg, onToggleBoldItalic, videoRefs }: Props) {
+export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onAddDrawing, drawingMode, drawingColor, drawingWidth, onDrawingColorChange, onDrawingWidthChange, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg, onToggleBoldItalic, videoRefs, onCaptureFrame }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const { t } = useI18n();
 
@@ -42,6 +49,9 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
         >{'\u25C0'}</div>
         {onAddText && (
           <MiniBtn title={t('addTextMini')} onClick={onAddText}>T</MiniBtn>
+        )}
+        {onAddDrawing && (
+          <MiniBtn title={t('addDrawing')} onClick={onAddDrawing}>✎</MiniBtn>
         )}
         {elements.length > 0 && (
           <MiniBtn title={t('delete')} onClick={onDelete} danger>🗑</MiniBtn>
@@ -70,18 +80,53 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
       <div style={{ ...panelStyle, background: 'var(--panel-bg)', borderLeft: '1px solid var(--border)', color: 'var(--text)' }}>
         {collapseBtn}
         <div style={labelStyle}>{t('tools')}</div>
-        {onAddText && (
-          <button onClick={onAddText} style={{
-            width: '100%', background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: 4, padding: '6px 0', color: 'var(--text)', fontSize: 12, cursor: 'pointer',
-            marginBottom: 12,
-          }}>
-            {t('addText')}
-          </button>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
+          {onAddText && (
+            <button onClick={onAddText} style={{
+              flex: 1, background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 4, padding: '6px 0', color: 'var(--text)', fontSize: 12, cursor: 'pointer',
+            }}>
+              {t('addText')}
+            </button>
+          )}
+          {onAddDrawing && (
+            <button onClick={onAddDrawing} style={{
+              flex: 1, background: drawingMode ? 'var(--accent)' : 'var(--surface)',
+              border: drawingMode ? '1px solid var(--accent)' : '1px solid var(--border)',
+              borderRadius: 4, padding: '6px 0',
+              color: drawingMode ? 'white' : 'var(--text)', fontSize: 12, cursor: 'pointer',
+            }}>
+              {drawingMode ? '✓ ' + t('drawing') : t('addDrawing')}
+            </button>
+          )}
+        </div>
+        {drawingMode && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('strokeColor')}</div>
+              <input
+                type="color"
+                value={drawingColor ?? '#000000'}
+                onChange={e => onDrawingColorChange?.(e.target.value)}
+                style={{ width: '100%', height: 28, border: 'none', cursor: 'pointer', background: 'transparent' }}
+              />
+            </div>
+            <div>
+              <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('strokeWidth')}: {drawingWidth ?? 3}</div>
+              <input
+                type="range" min={1} max={20}
+                value={drawingWidth ?? 3}
+                onChange={e => onDrawingWidthChange?.(Number(e.target.value))}
+                style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+              />
+            </div>
+          </div>
         )}
-        <p style={{ fontSize: 11, opacity: 0.4 }}>
-          {t('dragHint')}
-        </p>
+        {!drawingMode && (
+          <p style={{ fontSize: 11, opacity: 0.4 }}>
+            {t('dragHint')}
+          </p>
+        )}
         {onSlideBgChange && (
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 12 }}>
             <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('slideBg')}</div>
@@ -146,7 +191,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
         <div style={{ fontWeight: 600, color: 'var(--accent)', fontSize: 13 }}>{element.type}</div>
       </div>
 
-      {element.type !== 'text' && (
+      {(element.type === 'video' || element.type === 'image') && (
         <div style={{ marginBottom: 12 }}>
           <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 4 }}>{t('file')}</div>
           <div style={{ fontSize: 11, wordBreak: 'break-all' }}>{element.src.split('/').pop()}</div>
@@ -169,8 +214,9 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
         </div>
       </div>
 
-      {element.type === 'video' && <VideoProps element={element} onUpdate={onUpdate} videoRefs={videoRefs} />}
+      {element.type === 'video' && <VideoProps element={element} onUpdate={onUpdate} videoRefs={videoRefs} onCaptureFrame={onCaptureFrame} />}
       {element.type === 'text' && <TextProps element={element} onUpdate={onUpdate} activeEditor={activeEditor} onToggleBoldItalic={onToggleBoldItalic} />}
+      {element.type === 'drawing' && <DrawingProps element={element} onUpdate={onUpdate} />}
 
       {(element.type === 'image' || element.type === 'video') && (
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 8 }}>
@@ -326,10 +372,7 @@ function PreviewBtn({ label, onClick, onEnter, onLeave }: {
       onClick={onClick}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
-      style={{
-        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
-        padding: '3px 8px', fontSize: 10, cursor: 'pointer', color: 'var(--text)',
-      }}
+      style={panelBtnStyle}
     >
       {label}
     </button>
@@ -338,17 +381,17 @@ function PreviewBtn({ label, onClick, onEnter, onLeave }: {
 
 function ActionBtn({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
-        padding: '3px 8px', fontSize: 10, cursor: 'pointer', color: 'var(--text)',
-      }}
-    >
+    <button onClick={onClick} style={panelBtnStyle}>
       {label}
     </button>
   );
 }
+
+const panelBtnStyle: React.CSSProperties = {
+  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4,
+  padding: '5px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--text)',
+  minHeight: 26,
+};
 
 function formatTime(s: number): string {
   const m = Math.floor(s / 60);
@@ -356,11 +399,15 @@ function formatTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-function VideoProps({ element, onUpdate, videoRefs }: { element: VideoElement; onUpdate: (el: SlideElement) => void; videoRefs?: React.MutableRefObject<Map<string, HTMLVideoElement>> }) {
+const SPEED_OPTIONS = [0.25, 0.5, 1, 1.5, 2];
+const FRAME_STEP = 1 / 30;
+
+function VideoProps({ element, onUpdate, videoRefs, onCaptureFrame }: { element: VideoElement; onUpdate: (el: SlideElement) => void; videoRefs?: React.MutableRefObject<Map<string, HTMLVideoElement>>; onCaptureFrame?: (blob: Blob, width: number, height: number) => void }) {
   const { t } = useI18n();
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const rafRef = useRef<number>(0);
   const seekingRef = useRef(false);
 
@@ -374,6 +421,7 @@ function VideoProps({ element, onUpdate, videoRefs }: { element: VideoElement; o
     setDuration(video.duration || 0);
     setPlaying(!video.paused);
     setCurrentTime(video.currentTime);
+    setPlaybackRate(video.playbackRate);
 
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
@@ -404,12 +452,51 @@ function VideoProps({ element, onUpdate, videoRefs }: { element: VideoElement; o
     else video.pause();
   };
 
+  const handleStop = () => {
+    const video = getVideo();
+    if (!video) return;
+    video.pause();
+    video.currentTime = 0;
+  };
+
+  const handleStep = (delta: number) => {
+    const video = getVideo();
+    if (!video) return;
+    video.pause();
+    video.currentTime = Math.max(0, Math.min(duration, video.currentTime + delta));
+  };
+
+  const handleSpeedChange = (rate: number) => {
+    const video = getVideo();
+    if (!video) return;
+    video.playbackRate = rate;
+    setPlaybackRate(rate);
+  };
+
+  const handleCaptureFrame = () => {
+    const video = getVideo();
+    if (!video || !onCaptureFrame) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0);
+    canvas.toBlob(blob => {
+      if (blob) onCaptureFrame(blob, canvas.width, canvas.height);
+    }, 'image/png');
+  };
+
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const video = getVideo();
     if (!video) return;
-    const t = Number(e.target.value);
-    video.currentTime = t;
-    setCurrentTime(t);
+    const v = Number(e.target.value);
+    video.currentTime = v;
+    setCurrentTime(v);
+  };
+
+  const btnStyle: React.CSSProperties = {
+    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
+    width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    cursor: 'pointer', fontSize: 12, color: 'var(--text)', flexShrink: 0,
   };
 
   return (
@@ -418,21 +505,20 @@ function VideoProps({ element, onUpdate, videoRefs }: { element: VideoElement; o
 
       {duration > 0 && (
         <div style={{ marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-            <button
-              onClick={togglePlay}
-              style={{
-                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
-                width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', fontSize: 10, color: 'var(--text)', flexShrink: 0,
-              }}
-            >
-              {playing ? '\u23F8' : '\u25B6'}
+          {/* Playback controls row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+            <button onClick={() => handleStep(-FRAME_STEP)} style={btnStyle} title={t('videoStepBack')}>⏮</button>
+            <button onClick={togglePlay} style={btnStyle} title={playing ? t('videoStop') : undefined}>
+              {playing ? '⏸' : '▶'}
             </button>
-            <span style={{ fontSize: 9, opacity: 0.6, whiteSpace: 'nowrap' }}>
+            <button onClick={handleStop} style={btnStyle} title={t('videoStop')}>⏹</button>
+            <button onClick={() => handleStep(FRAME_STEP)} style={btnStyle} title={t('videoStepForward')}>⏭</button>
+            <span style={{ fontSize: 9, opacity: 0.6, whiteSpace: 'nowrap', marginLeft: 2 }}>
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
+
+          {/* Scrubber */}
           <input
             type="range"
             min={0}
@@ -442,8 +528,42 @@ function VideoProps({ element, onUpdate, videoRefs }: { element: VideoElement; o
             onChange={handleSeek}
             onPointerDown={() => { seekingRef.current = true; }}
             onPointerUp={() => { seekingRef.current = false; }}
-            style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+            style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer', marginBottom: 6 }}
           />
+
+          {/* Speed buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ fontSize: 10, opacity: 0.5, marginRight: 2 }}>{t('videoSpeed')}</span>
+            {SPEED_OPTIONS.map(rate => (
+              <button
+                key={rate}
+                onClick={() => handleSpeedChange(rate)}
+                style={{
+                  ...btnStyle,
+                  width: 'auto', padding: '0 5px', fontSize: 10,
+                  background: playbackRate === rate ? 'var(--accent)' : 'var(--surface)',
+                  color: playbackRate === rate ? 'white' : 'var(--text)',
+                  borderColor: playbackRate === rate ? 'var(--accent)' : 'var(--border)',
+                }}
+              >
+                {rate === 1 ? '1×' : rate < 1 ? `${rate}×` : `${rate}×`}
+              </button>
+            ))}
+          </div>
+
+          {onCaptureFrame && (
+            <button
+              onClick={handleCaptureFrame}
+              style={{
+                marginTop: 6, width: '100%', padding: '4px 8px', fontSize: 10,
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
+                cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+              }}
+              title={t('captureFrame')}
+            >
+              📷 {t('captureFrame')}
+            </button>
+          )}
         </div>
       )}
 
@@ -513,6 +633,46 @@ function TextProps({ element, onUpdate, activeEditor, onToggleBoldItalic }: { el
   );
 }
 
+function DrawingProps({ element, onUpdate }: { element: DrawingElement; onUpdate: (el: SlideElement) => void }) {
+  const { t } = useI18n();
+  return (
+    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
+      <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('drawing')}</div>
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('strokeColor')}</div>
+        <input
+          type="color"
+          value={element.strokeColor}
+          onChange={e => onUpdate({ ...element, strokeColor: e.target.value })}
+          style={{ width: '100%', height: 28, border: 'none', cursor: 'pointer', background: 'transparent' }}
+        />
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('strokeWidth')}: {element.strokeWidth}</div>
+        <input
+          type="range"
+          min={1}
+          max={20}
+          value={element.strokeWidth}
+          onChange={e => onUpdate({ ...element, strokeWidth: Number(e.target.value) })}
+          style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+        />
+      </div>
+      {element.strokes.length > 0 && (
+        <button
+          onClick={() => onUpdate({ ...element, strokes: [] })}
+          style={{
+            width: '100%', background: 'var(--danger-light)', border: '1px solid var(--danger)',
+            borderRadius: 3, padding: '4px 0', color: 'var(--danger)', fontSize: 11, cursor: 'pointer',
+          }}
+        >
+          {t('clearDrawing')}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Field({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <div style={{ flex: 1 }}>
@@ -542,9 +702,9 @@ function MiniBtn({ title, onClick, children, danger }: { title: string; onClick:
       onClick={onClick}
       title={title}
       style={{
-        width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
-        cursor: 'pointer', fontSize: 11, color: danger ? 'var(--danger)' : 'var(--text)',
+        width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4,
+        cursor: 'pointer', fontSize: 12, color: danger ? 'var(--danger)' : 'var(--text)',
       }}
     >{children}</button>
   );
@@ -565,7 +725,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 const formatBtnStyle: React.CSSProperties = {
-  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
-  padding: '3px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text)',
-  minWidth: 30, textAlign: 'center',
+  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4,
+  padding: '5px 12px', fontSize: 13, cursor: 'pointer', color: 'var(--text)',
+  minWidth: 34, minHeight: 28, textAlign: 'center',
 };

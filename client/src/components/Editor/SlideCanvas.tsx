@@ -1,14 +1,87 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { getVisibleRect, type Slide, type SlideElement, type VideoElement, type ImageElement } from '../../types';
+import { getVisibleRect, type Slide, type SlideElement, type VideoElement, type ImageElement, type Stroke } from '../../types';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { uploadFile } from '../../api';
 import { VideoEl } from '../Elements/VideoElement';
 import { ImageEl } from '../Elements/ImageElement';
 import { TextEl } from '../Elements/TextElement';
+import { DrawingEl } from '../Elements/DrawingElement';
 import { ElementToolbar } from './ElementToolbar';
 import { DraggableElement } from './DraggableElement';
 import { useI18n } from '../../i18n';
+import { CANVAS, ZOOM, SNAP, MEDIA } from '../../constants';
+
+// --- Group resize ---
+type GroupResizeDir = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
+
+const GR_HANDLE_SIZE = 12;
+
+const GR_CURSORS: Record<GroupResizeDir, string> = {
+  n: 'ns-resize', s: 'ns-resize',
+  e: 'ew-resize', w: 'ew-resize',
+  ne: 'nesw-resize', sw: 'nesw-resize',
+  nw: 'nwse-resize', se: 'nwse-resize',
+};
+
+const GR_DIRS: { dir: GroupResizeDir; style: React.CSSProperties }[] = [
+  { dir: 'nw', style: { top: -GR_HANDLE_SIZE / 2, left: -GR_HANDLE_SIZE / 2 } },
+  { dir: 'ne', style: { top: -GR_HANDLE_SIZE / 2, right: -GR_HANDLE_SIZE / 2 } },
+  { dir: 'se', style: { bottom: -GR_HANDLE_SIZE / 2, right: -GR_HANDLE_SIZE / 2 } },
+  { dir: 'sw', style: { bottom: -GR_HANDLE_SIZE / 2, left: -GR_HANDLE_SIZE / 2 } },
+  { dir: 'n',  style: { top: -GR_HANDLE_SIZE / 2, left: '50%', marginLeft: -GR_HANDLE_SIZE / 2 } },
+  { dir: 's',  style: { bottom: -GR_HANDLE_SIZE / 2, left: '50%', marginLeft: -GR_HANDLE_SIZE / 2 } },
+  { dir: 'e',  style: { right: -GR_HANDLE_SIZE / 2, top: '50%', marginTop: -GR_HANDLE_SIZE / 2 } },
+  { dir: 'w',  style: { left: -GR_HANDLE_SIZE / 2, top: '50%', marginTop: -GR_HANDLE_SIZE / 2 } },
+];
+
+const GR_MIN_EL_SIZE = 20;
+
+interface GrResizeState {
+  dir: GroupResizeDir;
+  origBbox: { x: number; y: number; w: number; h: number };
+  origEls: Array<{ id: string; x: number; y: number; width: number; height: number }>;
+  startClientX: number;
+  startClientY: number;
+}
+
+function computeGroupResize(
+  state: GrResizeState,
+  clientX: number,
+  clientY: number,
+  zoom: number,
+): Map<string, { x: number; y: number; width: number; height: number }> {
+  const { dir, origBbox, origEls, startClientX, startClientY } = state;
+  const dx = (clientX - startClientX) / zoom;
+  const dy = (clientY - startClientY) / zoom;
+
+  const hasX = dir.includes('e') || dir.includes('w');
+  const hasY = dir.includes('n') || dir.includes('s');
+
+  let newW = origBbox.w;
+  let newH = origBbox.h;
+  if (dir.includes('e')) newW = Math.max(GR_MIN_EL_SIZE, origBbox.w + dx);
+  if (dir.includes('w')) newW = Math.max(GR_MIN_EL_SIZE, origBbox.w - dx);
+  if (dir.includes('s')) newH = Math.max(GR_MIN_EL_SIZE, origBbox.h + dy);
+  if (dir.includes('n')) newH = Math.max(GR_MIN_EL_SIZE, origBbox.h - dy);
+
+  const scaleX = newW / origBbox.w;
+  const scaleY = newH / origBbox.h;
+
+  const anchorX = dir.includes('w') ? origBbox.x + origBbox.w : origBbox.x;
+  const anchorY = dir.includes('n') ? origBbox.y + origBbox.h : origBbox.y;
+
+  const overrides = new Map<string, { x: number; y: number; width: number; height: number }>();
+  for (const el of origEls) {
+    overrides.set(el.id, {
+      x:      hasX ? anchorX + (el.x - anchorX) * scaleX : el.x,
+      y:      hasY ? anchorY + (el.y - anchorY) * scaleY : el.y,
+      width:  hasX ? Math.max(GR_MIN_EL_SIZE, el.width  * scaleX) : el.width,
+      height: hasY ? Math.max(GR_MIN_EL_SIZE, el.height * scaleY) : el.height,
+    });
+  }
+  return overrides;
+}
 
 interface Props {
   slide: Slide;
@@ -19,6 +92,7 @@ interface Props {
   onSelectMultiple: (ids: string[]) => void;
   onUpdateElements: (elements: SlideElement[]) => void;
   onUpdateElement: (element: SlideElement) => void;
+  onUpdateMultiple: (elements: SlideElement[]) => void;
   onMoveGroup: (draggedId: string, dx: number, dy: number) => void;
   onStartEditing: (id: string) => void;
   onStopEditing: () => void;
@@ -31,13 +105,17 @@ interface Props {
   activeEditor: TiptapEditor | null;
   onToggleBoldItalic: (key: string) => void;
   videoRefs: React.MutableRefObject<Map<string, HTMLVideoElement>>;
+  drawingMode?: boolean;
+  drawingColor?: string;
+  drawingWidth?: number;
+  onDrawingComplete?: (strokes: Stroke[], bounds: { x: number; y: number; width: number; height: number }) => void;
 }
 
-const CANVAS_WIDTH = 960;
-const CANVAS_HEIGHT = 540;
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 3;
-const ZOOM_STEP = 0.1;
+const CANVAS_WIDTH = CANVAS.WIDTH;
+const CANVAS_HEIGHT = CANVAS.HEIGHT;
+const MIN_ZOOM = ZOOM.MIN;
+const MAX_ZOOM = ZOOM.MAX;
+const ZOOM_STEP = ZOOM.STEP;
 
 function probeVideoDimensions(src: string): Promise<{ width: number; height: number }> {
   return new Promise((resolve) => {
@@ -75,7 +153,8 @@ function rectsIntersect(
 }
 
 export function SlideCanvas({
-  slide, presentationId, selectedIds, editingId, onSelectElement, onSelectMultiple, onUpdateElements, onUpdateElement, onMoveGroup, onStartEditing, onStopEditing, onEditorReady, previewPositions, croppingId, onStartCropping, onCommitCrop, onDeleteSelected, activeEditor, onToggleBoldItalic, videoRefs,
+  slide, presentationId, selectedIds, editingId, onSelectElement, onSelectMultiple, onUpdateElements, onUpdateElement, onUpdateMultiple, onMoveGroup, onStartEditing, onStopEditing, onEditorReady, previewPositions, croppingId, onStartCropping, onCommitCrop, onDeleteSelected, activeEditor, onToggleBoldItalic, videoRefs,
+  drawingMode, drawingColor = '#000000', drawingWidth = 3, onDrawingComplete,
 }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -117,6 +196,10 @@ export function SlideCanvas({
   // Live drag offset for group movement and outline tracking
   const [groupDragOffset, setGroupDragOffset] = useState<{ dx: number; dy: number } | null>(null);
   const [liveDragDelta, setLiveDragDelta] = useState<{ id: string; dx: number; dy: number } | null>(null);
+  // Group resize
+  const [groupResizeOverrides, setGroupResizeOverrides] =
+    useState<Map<string, { x: number; y: number; width: number; height: number }> | null>(null);
+  const groupResizeRef = useRef<GrResizeState | null>(null);
 
   // Alt key toggles snap
   useEffect(() => {
@@ -127,7 +210,7 @@ export function SlideCanvas({
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
 
-  const SNAP_THRESHOLD = 5;
+  const SNAP_THRESHOLD = SNAP.THRESHOLD;
   const CANVAS_W = CANVAS_WIDTH;
   const CANVAS_H = CANVAS_HEIGHT;
 
@@ -185,6 +268,63 @@ export function SlideCanvas({
     };
   }, [snapEnabled, slide.elements]);
   const draggingIdRef = useRef<string | null>(null);
+
+  // Group resize callback
+  const handleGroupResizePointerDown = useCallback(
+    (dir: GroupResizeDir) => (e: React.PointerEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      const origEls = slide.elements
+        .filter(el => selectedIds.has(el.id))
+        .map(el => ({ id: el.id, x: el.x, y: el.y, width: el.width, height: el.height }));
+
+      const bboxX = Math.min(...origEls.map(el => el.x));
+      const bboxY = Math.min(...origEls.map(el => el.y));
+      const bboxMaxX = Math.max(...origEls.map(el => el.x + el.width));
+      const bboxMaxY = Math.max(...origEls.map(el => el.y + el.height));
+
+      groupResizeRef.current = {
+        dir,
+        origBbox: { x: bboxX, y: bboxY, w: bboxMaxX - bboxX, h: bboxMaxY - bboxY },
+        origEls,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+      };
+
+      const onMove = (ev: PointerEvent) => {
+        const state = groupResizeRef.current;
+        if (!state) return;
+        setGroupResizeOverrides(computeGroupResize(state, ev.clientX, ev.clientY, zoom));
+      };
+
+      const onUp = (ev: PointerEvent) => {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        const state = groupResizeRef.current;
+        if (!state) return;
+        groupResizeRef.current = null;
+        const overrides = computeGroupResize(state, ev.clientX, ev.clientY, zoom);
+        setGroupResizeOverrides(null);
+        const updatedEls = slide.elements
+          .filter(el => selectedIds.has(el.id))
+          .map(el => {
+            const o = overrides.get(el.id);
+            if (!o) return el;
+            const base = { ...el, x: o.x, y: o.y, width: o.width, height: o.height };
+            if (el.type === 'text') {
+              return { ...base, fontSize: Math.max(8, Math.round(el.fontSize * (o.width / el.width))) };
+            }
+            return base;
+          });
+        onUpdateMultiple(updatedEls);
+      };
+
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    },
+    [slide.elements, selectedIds, zoom, onUpdateMultiple],
+  );
 
   // Marquee selection state
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -342,15 +482,94 @@ export function SlideCanvas({
           />
         );
       }
+      case 'drawing':
+        return (
+          <DrawingEl
+            element={el}
+            isEditing={editingId === el.id}
+            onUpdate={onUpdateElement}
+          />
+        );
     }
   };
+
+  // === Free drawing mode state ===
+  const [freeStrokes, setFreeStrokes] = useState<Array<{ points: Array<{ x: number; y: number }>; color: string; width: number }>>([]);
+  const [freeCurrentStroke, setFreeCurrentStroke] = useState<{ points: Array<{ x: number; y: number }>; color: string; width: number } | null>(null);
+  const freeDrawing = useRef(false);
+
+  const getCanvasPoint = useCallback((e: React.PointerEvent) => {
+    const canvasEl = canvasRef.current;
+    if (!canvasEl) return { x: 0, y: 0 };
+    const rect = canvasEl.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) / zoom,
+      y: (e.clientY - rect.top) / zoom,
+    };
+  }, [zoom]);
+
+  const handleFreePointerDown = useCallback((e: React.PointerEvent) => {
+    if (!drawingMode) return;
+    e.stopPropagation();
+    e.preventDefault();
+    freeDrawing.current = true;
+    (e.target as Element).setPointerCapture(e.pointerId);
+    const pt = getCanvasPoint(e);
+    setFreeCurrentStroke({ points: [pt], color: drawingColor, width: drawingWidth });
+  }, [drawingMode, getCanvasPoint, drawingColor, drawingWidth]);
+
+  const handleFreePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!freeDrawing.current || !freeCurrentStroke) return;
+    e.stopPropagation();
+    const pt = getCanvasPoint(e);
+    setFreeCurrentStroke(prev => prev ? { ...prev, points: [...prev.points, pt] } : prev);
+  }, [getCanvasPoint, freeCurrentStroke]);
+
+  const handleFreePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!freeDrawing.current || !freeCurrentStroke) return;
+    e.stopPropagation();
+    freeDrawing.current = false;
+    if (freeCurrentStroke.points.length > 1) {
+      setFreeStrokes(prev => [...prev, freeCurrentStroke]);
+    }
+    setFreeCurrentStroke(null);
+  }, [freeCurrentStroke]);
+
+  // Finalize free drawing: compute bounds, normalize points, create element
+  const finalizeFreeDrawing = useCallback(() => {
+    if (freeStrokes.length === 0) return;
+    const allPts = freeStrokes.flatMap(s => s.points);
+    const padding = 10;
+    const minX = Math.min(...allPts.map(p => p.x)) - padding;
+    const minY = Math.min(...allPts.map(p => p.y)) - padding;
+    const maxX = Math.max(...allPts.map(p => p.x)) + padding;
+    const maxY = Math.max(...allPts.map(p => p.y)) + padding;
+    const w = Math.max(maxX - minX, 20);
+    const h = Math.max(maxY - minY, 20);
+    // Store points as pixel offsets from bounding box origin
+    const normalized: Stroke[] = freeStrokes.map(s => ({
+      color: s.color,
+      width: s.width,
+      points: s.points.map(p => ({ x: p.x - minX, y: p.y - minY })),
+    }));
+    onDrawingComplete?.(normalized, { x: minX, y: minY, width: w, height: h });
+    setFreeStrokes([]);
+    setFreeCurrentStroke(null);
+  }, [freeStrokes, onDrawingComplete]);
+
+  // When drawingMode is turned off, finalize any pending strokes
+  useEffect(() => {
+    if (!drawingMode && freeStrokes.length > 0) {
+      finalizeFreeDrawing();
+    }
+  }, [drawingMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div
       style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding: 16, overflow: 'hidden', position: 'relative',
-        cursor: isPanning.current ? 'grabbing' : undefined,
+        cursor: drawingMode ? 'crosshair' : (isPanning.current ? 'grabbing' : undefined),
       }}
       onWheel={handleWheel}
       onMouseDown={(e) => {
@@ -460,28 +679,90 @@ export function SlideCanvas({
             }} />
           )}
 
-          {/* Group bounding box */}
-          {selectedIds.size > 1 && (() => {
-            const selected = slide.elements.filter(el => selectedIds.has(el.id)).map(getVisibleRect);
-            if (selected.length < 2) return null;
-            const offX = groupDragOffset?.dx ?? 0;
-            const offY = groupDragOffset?.dy ?? 0;
-            const minX = Math.min(...selected.map(r => r.x)) + offX;
-            const minY = Math.min(...selected.map(r => r.y)) + offY;
-            const maxX = Math.max(...selected.map(r => r.x + r.width)) + offX;
-            const maxY = Math.max(...selected.map(r => r.y + r.height)) + offY;
+          {/* Group bounding box + resize handles */}
+          {selectedIds.size > 1 && !drawingMode && !croppingId && (() => {
+            const selectedEls = slide.elements.filter(el => selectedIds.has(el.id));
+            if (selectedEls.length < 2) return null;
+
+            let minX: number, minY: number, maxX: number, maxY: number;
+            if (groupResizeOverrides) {
+              const rects = selectedEls.map(el =>
+                groupResizeOverrides.get(el.id) ?? { x: el.x, y: el.y, width: el.width, height: el.height }
+              );
+              minX = Math.min(...rects.map(r => r.x));
+              minY = Math.min(...rects.map(r => r.y));
+              maxX = Math.max(...rects.map(r => r.x + r.width));
+              maxY = Math.max(...rects.map(r => r.y + r.height));
+            } else {
+              const offX = groupDragOffset?.dx ?? 0;
+              const offY = groupDragOffset?.dy ?? 0;
+              const rects = selectedEls.map(getVisibleRect);
+              minX = Math.min(...rects.map(r => r.x)) + offX;
+              minY = Math.min(...rects.map(r => r.y)) + offY;
+              maxX = Math.max(...rects.map(r => r.x + r.width)) + offX;
+              maxY = Math.max(...rects.map(r => r.y + r.height)) + offY;
+            }
+
+            const pad = 4;
             return (
               <div style={{
                 position: 'absolute',
-                left: minX - 4, top: minY - 4,
-                width: maxX - minX + 8, height: maxY - minY + 8,
+                left: minX - pad, top: minY - pad,
+                width: maxX - minX + pad * 2, height: maxY - minY + pad * 2,
                 border: '1px dashed var(--accent)',
                 borderRadius: 2,
                 pointerEvents: 'none',
                 zIndex: 150,
-              }} />
+              }}>
+                {GR_DIRS.map(({ dir, style }) => (
+                  <div
+                    key={dir}
+                    onPointerDown={handleGroupResizePointerDown(dir)}
+                    style={{
+                      position: 'absolute',
+                      width: GR_HANDLE_SIZE, height: GR_HANDLE_SIZE,
+                      background: 'var(--accent)',
+                      border: '1px solid var(--surface)',
+                      borderRadius: 1,
+                      cursor: GR_CURSORS[dir],
+                      pointerEvents: 'auto',
+                      zIndex: 10,
+                      ...style,
+                    }}
+                  />
+                ))}
+              </div>
             );
           })()}
+
+          {/* Free drawing overlay */}
+          {drawingMode && (
+            <svg
+              style={{
+                position: 'absolute', inset: 0, width: CANVAS_WIDTH, height: CANVAS_HEIGHT,
+                zIndex: 200, cursor: 'crosshair',
+              }}
+              onPointerDown={handleFreePointerDown}
+              onPointerMove={handleFreePointerMove}
+              onPointerUp={handleFreePointerUp}
+            >
+              {freeStrokes.map((s, i) => (
+                <path
+                  key={i}
+                  d={s.points.map((p, j) => `${j === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
+                  fill="none" stroke={s.color} strokeWidth={s.width}
+                  strokeLinecap="round" strokeLinejoin="round"
+                />
+              ))}
+              {freeCurrentStroke && (
+                <path
+                  d={freeCurrentStroke.points.map((p, j) => `${j === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
+                  fill="none" stroke={freeCurrentStroke.color} strokeWidth={freeCurrentStroke.width}
+                  strokeLinecap="round" strokeLinejoin="round"
+                />
+              )}
+            </svg>
+          )}
 
           {/* Alignment preview ghosts */}
           {previewPositions && previewPositions.map(p => (
@@ -513,6 +794,8 @@ export function SlideCanvas({
 
           {slide.elements.map(el => {
             const isTextEditing = el.type === 'text' && editingId === el.id;
+            const isDrawingEditing = el.type === 'drawing' && editingId === el.id;
+            const isElementEditing = isTextEditing || isDrawingEditing;
             const isSelected = selectedIds.has(el.id);
             const isMulti = selectedIds.size > 1;
             const liveOffset = (isSelected && isMulti && groupDragOffset && draggingIdRef.current !== el.id)
@@ -533,9 +816,14 @@ export function SlideCanvas({
                 width={el.width}
                 height={el.height}
                 zoom={zoom}
-                disableDrag={isTextEditing || isCroppingThis}
-                disableResize={isTextEditing || isMulti || isCroppingThis || !isSelected}
+                disableDrag={isElementEditing || isCroppingThis || !!groupResizeOverrides}
+                disableResize={isElementEditing || isMulti || isCroppingThis || !isSelected}
                 lockAspectRatio={el.type === 'image' || el.type === 'video'}
+                liveOverride={
+                  groupResizeOverrides && selectedIds.has(el.id)
+                    ? groupResizeOverrides.get(el.id)
+                    : undefined
+                }
                 snapFn={makeSnapFn(el.id)}
                 onDragStart={() => {
                   if (!isSelected) {
@@ -586,7 +874,7 @@ export function SlideCanvas({
                 }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
-                  if (el.type === 'text') {
+                  if (el.type === 'text' || el.type === 'drawing') {
                     onSelectElement(el.id);
                     onStartEditing(el.id);
                   }
@@ -637,6 +925,7 @@ export function SlideCanvas({
                     isCropping={croppingId === el.id}
                     activeEditor={editingId === el.id ? activeEditor : null}
                     onToggleBoldItalic={onToggleBoldItalic}
+                    videoRefs={videoRefs}
                   />
                 )}
                 {isCroppingThis && (el.type === 'image' || el.type === 'video') && (
@@ -679,6 +968,7 @@ export function SlideCanvas({
                     }}
                     isCropping={croppingId === el.id}
                     activeEditor={null}
+                    videoRefs={videoRefs}
                   />
                 )}
               </CroppedOutline>
@@ -803,6 +1093,6 @@ function CropBlocker({ style }: { style: React.CSSProperties }) {
 
 const zoomBtnStyle: React.CSSProperties = {
   background: 'none', border: 'none', cursor: 'pointer',
-  fontSize: 14, color: 'var(--text)', padding: '2px 6px', borderRadius: 3,
-  lineHeight: 1,
+  fontSize: 14, color: 'var(--text)', padding: '4px 8px', borderRadius: 4,
+  lineHeight: 1, minWidth: 28, minHeight: 26,
 };
