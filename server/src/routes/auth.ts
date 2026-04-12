@@ -40,12 +40,13 @@ authRouter.post('/register', async (req, res) => {
     res.status(400).json({ error: 'Password must be at least 6 characters' });
     return;
   }
+  const passwordHash = await bcrypt.hash(password, 10);
+  // Re-read after async hash to avoid race condition
   const users = loadUsers();
   if (users.find(u => u.username === username)) {
     res.status(409).json({ error: 'Username already taken' });
     return;
   }
-  const passwordHash = await bcrypt.hash(password, 10);
   const newUser = { id: uuidv4(), username, passwordHash };
   saveUsers([...users, newUser]);
   const token = signToken(newUser.id, newUser.username);

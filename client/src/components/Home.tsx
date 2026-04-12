@@ -53,11 +53,11 @@ export function Home() {
 
   function formatExpiry(expiresAt: string): string {
     const diff = new Date(expiresAt).getTime() - Date.now();
-    if (diff <= 0) return 'Expirée';
+    if (diff <= 0) return t('expired');
     const h = Math.floor(diff / 3600000);
-    if (h < 1) return 'Expire dans < 1h';
-    if (h < 24) return `Expire dans ${h}h`;
-    return `Expire dans ${Math.floor(h / 24)}j`;
+    if (h < 1) return t('expiresInLess1h');
+    if (h < 24) return t('expiresInHours').replace('%s', String(h));
+    return t('expiresInDays').replace('%s', String(Math.floor(h / 24)));
   }
 
   return (
@@ -83,7 +83,7 @@ export function Home() {
                 onClick={logout}
                 style={{ ...btnStyle, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', padding: '8px 14px' }}
               >
-                Déconnexion
+                {t('logout')}
               </button>
             </div>
           ) : (
@@ -91,7 +91,7 @@ export function Home() {
               onClick={() => setShowLogin(true)}
               style={{ ...btnStyle, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', padding: '8px 14px' }}
             >
-              Connexion
+              {t('login')}
             </button>
           )}
           <button
@@ -116,7 +116,7 @@ export function Home() {
 
       {presentations.length === 0 ? (
         <p style={{ opacity: 0.5, textAlign: 'center', marginTop: 60 }}>
-          {user ? t('noPresentation') : 'Connectez-vous pour retrouver vos présentations.'}
+          {user ? t('noPresentation') : t('loginPrompt')}
         </p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

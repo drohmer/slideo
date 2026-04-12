@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticate } from '../auth.js';
+import { authenticate, checkWriteAccess } from '../auth.js';
 import type { Request, Response, NextFunction } from 'express';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,32 +49,9 @@ function writePresentation(id: string, data: StoredPresentation) {
   fs.writeFileSync(path.join(DATA_DIR, `${id}.json`), JSON.stringify(data, null, 2));
 }
 
-function stripEditToken(obj: StoredPresentation): Omit<StoredPresentation, 'editToken'> {
-  const { editToken: _token, ...rest } = obj;
+function stripSecrets(obj: StoredPresentation): Omit<StoredPresentation, 'editToken' | 'shareToken'> {
+  const { editToken: _t, shareToken: _s, ...rest } = obj;
   return rest;
-}
-
-function checkWriteAccess(existing: StoredPresentation, req: Request, res: Response): boolean {
-  const shareToken = req.headers['x-share-token'];
-  if (shareToken && shareToken === existing.shareToken) return true;
-
-  if (existing.ownerId) {
-    if (!req.user || req.user.id !== existing.ownerId) {
-      res.status(403).json({ error: 'Forbidden' });
-      return false;
-    }
-    return true;
-  }
-  if (existing.anonymous) {
-    const token = req.headers['x-edit-token'];
-    if (!token || token !== existing.editToken) {
-      res.status(403).json({ error: 'Forbidden' });
-      return false;
-    }
-    return true;
-  }
-  // Legacy presentation without auth fields — allow
-  return true;
 }
 
 // List presentations
@@ -104,7 +81,7 @@ presentationsRouter.get('/', (_req, res) => {
 presentationsRouter.get('/:id', (req, res) => {
   const data = readPresentation(req.params.id);
   if (!data) { res.status(404).json({ error: 'Not found' }); return; }
-  res.json(stripEditToken(data));
+  res.json(stripSecrets(data));
 });
 
 // Create a presentation
@@ -166,7 +143,7 @@ presentationsRouter.put('/:id', (req, res) => {
     ...(existing.shareToken ? { shareToken: existing.shareToken } : {}),
   };
   writePresentation(req.params.id, updated);
-  res.json(stripEditToken(updated));
+  res.json(stripSecrets(updated));
 });
 
 // Delete a presentation

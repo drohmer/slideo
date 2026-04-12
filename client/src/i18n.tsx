@@ -86,6 +86,15 @@ const translations = {
   // Canvas
   dropFiles: { fr: 'Déposez vos fichiers ici', en: 'Drop your files here' },
 
+  // Auth
+  login: { fr: 'Connexion', en: 'Sign in' },
+  logout: { fr: 'Déconnexion', en: 'Sign out' },
+  loginPrompt: { fr: 'Connectez-vous pour retrouver vos présentations.', en: 'Sign in to access your presentations.' },
+  expired: { fr: 'Expirée', en: 'Expired' },
+  expiresInLess1h: { fr: 'Expire dans < 1h', en: 'Expires in < 1h' },
+  expiresInHours: { fr: 'Expire dans %sh', en: 'Expires in %sh' },
+  expiresInDays: { fr: 'Expire dans %sj', en: 'Expires in %sd' },
+
   // Home
   newPresentation: { fr: '+ Nouvelle présentation', en: '+ New presentation' },
   noPresentation: { fr: 'Aucune présentation. Créez-en une pour commencer.', en: 'No presentations. Create one to get started.' },

@@ -88,3 +88,33 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     next();
   });
 }
+
+export interface WriteProtected {
+  ownerId?: string;
+  anonymous?: true;
+  editToken?: string;
+  shareToken?: string;
+}
+
+export function checkWriteAccess(existing: WriteProtected, req: Request, res: Response): boolean {
+  const shareToken = req.headers['x-share-token'];
+  if (typeof shareToken === 'string' && shareToken.length > 0 && shareToken === existing.shareToken) return true;
+
+  if (existing.ownerId) {
+    if (!req.user || req.user.id !== existing.ownerId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return false;
+    }
+    return true;
+  }
+  if (existing.anonymous) {
+    const token = req.headers['x-edit-token'];
+    if (typeof token !== 'string' || token.length === 0 || token !== existing.editToken) {
+      res.status(403).json({ error: 'Forbidden' });
+      return false;
+    }
+    return true;
+  }
+  // Legacy presentation without auth fields — allow
+  return true;
+}

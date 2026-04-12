@@ -28,11 +28,12 @@ export async function createPresentation(title?: string): Promise<Presentation> 
 }
 
 function writeHeaders(id: string): Record<string, string> {
-  return {
-    ...getAuthHeaders(),
-    'x-edit-token': getEditToken(id) ?? '',
-    'x-share-token': getShareToken(id) ?? '',
-  };
+  const headers: Record<string, string> = { ...getAuthHeaders() };
+  const editToken = getEditToken(id);
+  if (editToken) headers['x-edit-token'] = editToken;
+  const shareToken = getShareToken(id);
+  if (shareToken) headers['x-share-token'] = shareToken;
+  return headers;
 }
 
 export async function savePresentation(presentation: Presentation): Promise<Presentation> {

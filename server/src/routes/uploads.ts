@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { authenticate } from '../auth.js';
+import { authenticate, checkWriteAccess } from '../auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.resolve(__dirname, '../../uploads');
@@ -40,30 +40,28 @@ const upload = multer({
   },
 });
 
+function cleanupFile(file: Express.Multer.File | undefined) {
+  if (file) {
+    try { fs.unlinkSync(file.path); } catch { /* ignore */ }
+  }
+}
+
 export const uploadsRouter = Router();
 
 uploadsRouter.post('/:id/upload', authenticate, upload.single('file'), (req, res) => {
   if (!UUID_RE.test(req.params.id)) {
+    cleanupFile(req.file);
     res.status(400).json({ error: 'Invalid id' }); return;
   }
   if (!req.file) { res.status(400).json({ error: 'No file uploaded' }); return; }
 
   // Check write access
-  const filePath = path.join(DATA_DIR, `${req.params.id}.json`);
-  if (fs.existsSync(filePath)) {
-    const existing = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-    const shareToken = req.headers['x-share-token'];
-    if (shareToken && shareToken === existing.shareToken) {
-      // share token grants access
-    } else if (existing.ownerId) {
-      if (!req.user || req.user.id !== existing.ownerId) {
-        res.status(403).json({ error: 'Forbidden' }); return;
-      }
-    } else if (existing.anonymous) {
-      const token = req.headers['x-edit-token'];
-      if (!token || token !== existing.editToken) {
-        res.status(403).json({ error: 'Forbidden' }); return;
-      }
+  const presPath = path.join(DATA_DIR, `${req.params.id}.json`);
+  if (fs.existsSync(presPath)) {
+    const existing = JSON.parse(fs.readFileSync(presPath, 'utf-8'));
+    if (!checkWriteAccess(existing, req, res)) {
+      cleanupFile(req.file);
+      return;
     }
   }
 
