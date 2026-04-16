@@ -45,7 +45,7 @@ function cleanupFile(file: Express.Multer.File | undefined) {
   }
 }
 
-const PRIVATE_HOST_RE = /^(localhost|127\.|0\.0\.0\.0|::1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i;
+const PRIVATE_HOST_RE = /^(localhost|127\.|0\.0\.0\.0|::1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|fc[0-9a-f]{2}:|fd[0-9a-f]{2}:)/i;
 
 export const uploadsRouter = Router();
 
@@ -93,9 +93,12 @@ uploadsRouter.post('/:id/upload-url', authenticate, async (req, res) => {
 
   let response: Response;
   try {
-    response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+    response = await fetch(url, { signal: AbortSignal.timeout(30_000), redirect: 'manual' });
   } catch { res.status(400).json({ error: 'Failed to reach URL' }); return; }
 
+  if (response.status >= 300 && response.status < 400) {
+    res.status(400).json({ error: 'URL redirects are not allowed (security)' }); return;
+  }
   if (!response.ok || !response.body) {
     res.status(400).json({ error: `Remote returned ${response.status}` }); return;
   }

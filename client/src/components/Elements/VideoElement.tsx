@@ -23,11 +23,17 @@ export function VideoEl({ element, editMode, background = '#ffffff', videoRefs }
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chromaKeyRef = useRef(element.chromaKey);
   const rafRef = useRef<number>(0);
+  const drawFrameRef = useRef<(() => void) | null>(null);
 
   // Keep chromaKeyRef current without re-triggering the RAF effect
   useLayoutEffect(() => {
     chromaKeyRef.current = element.chromaKey;
   });
+
+  // Redraw when chromaKey params change while paused
+  useEffect(() => {
+    if (element.chromaKey && videoRef.current?.paused) drawFrameRef.current?.();
+  }, [element.chromaKey?.color, element.chromaKey?.tolerance]);
 
   // Register video for PropertiesPanel controls
   useEffect(() => {
@@ -48,49 +54,72 @@ export function VideoEl({ element, editMode, background = '#ffffff', videoRefs }
     if (!ctx) return;
 
     let running = true;
-    const draw = () => {
-      if (!running) return;
+    let looping = false;
+
+    const drawFrame = () => {
       const ck = chromaKeyRef.current;
-      if (ck && video.readyState >= 2) {
-        const vw = video.videoWidth;
-        const vh = video.videoHeight;
-        const cw = canvas.width;
-        const ch = canvas.height;
-        ctx.clearRect(0, 0, cw, ch);
-        if (vw > 0 && vh > 0) {
-          // object-fit: cover — scale to fill, crop excess, no stretching
-          let sx = 0, sy = 0, sw = vw, sh = vh;
-          const videoAspect = vw / vh;
-          const canvasAspect = cw / ch;
-          if (videoAspect > canvasAspect) {
-            sw = vh * canvasAspect;
-            sx = (vw - sw) / 2;
-          } else if (videoAspect < canvasAspect) {
-            sh = vw / canvasAspect;
-            sy = (vh - sh) / 2;
-          }
-          ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cw, ch);
+      if (!ck || video.readyState < 2) return;
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const cw = canvas.width;
+      const ch = canvas.height;
+      ctx.clearRect(0, 0, cw, ch);
+      if (vw > 0 && vh > 0) {
+        // object-fit: cover — scale to fill, crop excess, no stretching
+        let sx = 0, sy = 0, sw = vw, sh = vh;
+        const videoAspect = vw / vh;
+        const canvasAspect = cw / ch;
+        if (videoAspect > canvasAspect) {
+          sw = vh * canvasAspect;
+          sx = (vw - sw) / 2;
+        } else if (videoAspect < canvasAspect) {
+          sh = vw / canvasAspect;
+          sy = (vh - sh) / 2;
         }
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const d = imageData.data;
-        const [kr, kg, kb] = hexToRgb255(ck.color);
-        // Squared Euclidean distance in [0-255] space to avoid sqrt
-        const tolSq = (ck.tolerance * 255) ** 2;
-        for (let i = 0; i < d.length; i += 4) {
-          const dr = d[i] - kr;
-          const dg = d[i + 1] - kg;
-          const db = d[i + 2] - kb;
-          if (dr * dr + dg * dg + db * db < tolSq) d[i + 3] = 0;
-        }
-        ctx.putImageData(imageData, 0, 0);
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cw, ch);
       }
-      rafRef.current = requestAnimationFrame(draw);
+      const imageData = ctx.getImageData(0, 0, cw, ch);
+      const d = imageData.data;
+      const [kr, kg, kb] = hexToRgb255(ck.color);
+      const tolSq = (ck.tolerance * 255) ** 2;
+      for (let i = 0; i < d.length; i += 4) {
+        const dr = d[i] - kr;
+        const dg = d[i + 1] - kg;
+        const db = d[i + 2] - kb;
+        if (dr * dr + dg * dg + db * db < tolSq) d[i + 3] = 0;
+      }
+      ctx.putImageData(imageData, 0, 0);
     };
-    rafRef.current = requestAnimationFrame(draw);
+
+    // RAF loop only while video is playing
+    const loop = () => {
+      if (!running || video.paused) { looping = false; return; }
+      drawFrame();
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    const startLoop = () => { if (!looping && running) { looping = true; rafRef.current = requestAnimationFrame(loop); } };
+
+    // Draw once on load/seek/pause, loop while playing
+    const onPlay = () => startLoop();
+    const onSeeked = () => drawFrame();
+    const onLoaded = () => drawFrame();
+    video.addEventListener('play', onPlay);
+    video.addEventListener('seeked', onSeeked);
+    video.addEventListener('loadeddata', onLoaded);
+
+    drawFrameRef.current = drawFrame;
+
+    // Initial draw + loop if already playing
+    drawFrame();
+    if (!video.paused) startLoop();
 
     return () => {
       running = false;
+      drawFrameRef.current = null;
       cancelAnimationFrame(rafRef.current);
+      video.removeEventListener('play', onPlay);
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('loadeddata', onLoaded);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!element.chromaKey]);

@@ -210,18 +210,24 @@ function initChromaKey(canvas,video,keyColor,tolerance){
   gl.uniform3f(uKey,parseInt(keyColor.slice(1,3),16)/255,parseInt(keyColor.slice(3,5),16)/255,parseInt(keyColor.slice(5,7),16)/255);
   gl.uniform1f(uTol,tolerance);
   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  var raf;
   (function draw(){
     if(video.readyState>=2){
       if(video.videoWidth>0&&canvas.width!==video.videoWidth){canvas.width=video.videoWidth;canvas.height=video.videoHeight;gl.viewport(0,0,canvas.width,canvas.height);}
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,video);
       gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
     }
-    requestAnimationFrame(draw);
+    raf=requestAnimationFrame(draw);
   })();
+  return raf;
 }
+
+var activeRafs=[];
 
 function renderSlide(i){
   idx=i;
+  activeRafs.forEach(function(r){cancelAnimationFrame(r)});
+  activeRafs=[];
   const slide=PRES.slides[i];
   stage.style.background=slide.background;
   stage.innerHTML='';
@@ -241,7 +247,7 @@ function renderSlide(i){
         c.width=el.naturalWidth||el.width;c.height=el.naturalHeight||el.height;
         c.style.cssText='width:100%;height:100%;display:block;';
         div.appendChild(v);div.appendChild(c);
-        initChromaKey(c,v,el.chromaKey.color,el.chromaKey.tolerance);
+        activeRafs.push(initChromaKey(c,v,el.chromaKey.color,el.chromaKey.tolerance));
       }else{
         v.controls=true;
         div.appendChild(v);
