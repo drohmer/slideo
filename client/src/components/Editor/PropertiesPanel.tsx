@@ -28,11 +28,32 @@ interface Props {
   onToggleBoldItalic?: (key: string) => void;
   videoRefs?: React.MutableRefObject<Map<string, HTMLVideoElement>>;
   onCaptureFrame?: (blob: Blob, width: number, height: number) => void;
+  onAddVideoFromUrl?: (url: string, download: boolean) => Promise<void>;
 }
 
-export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onAddDrawing, drawingMode, drawingColor, drawingWidth, onDrawingColorChange, onDrawingWidthChange, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg, onToggleBoldItalic, videoRefs, onCaptureFrame }: Props) {
+export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onAddDrawing, drawingMode, drawingColor, drawingWidth, onDrawingColorChange, onDrawingWidthChange, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg, onToggleBoldItalic, videoRefs, onCaptureFrame, onAddVideoFromUrl }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  const [urlInputOpen, setUrlInputOpen] = useState(false);
+  const [urlValue, setUrlValue] = useState('');
+  const [urlLoading, setUrlLoading] = useState(false);
+  const [urlError, setUrlError] = useState('');
   const { t } = useI18n();
+
+  const handleUrlSubmit = async (download: boolean) => {
+    const url = urlValue.trim();
+    if (!url) return;
+    setUrlLoading(true);
+    setUrlError('');
+    try {
+      await onAddVideoFromUrl?.(url, download);
+      setUrlValue('');
+      setUrlInputOpen(false);
+    } catch (e) {
+      setUrlError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUrlLoading(false);
+    }
+  };
 
   if (collapsed) {
     return (
@@ -120,6 +141,71 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
                 style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
               />
             </div>
+          </div>
+        )}
+        {onAddVideoFromUrl && (
+          <div style={{ marginBottom: 8 }}>
+            <button
+              onClick={() => { setUrlInputOpen(o => !o); setUrlError(''); }}
+              style={{
+                width: '100%', background: urlInputOpen ? 'var(--accent)' : 'var(--surface)',
+                border: urlInputOpen ? '1px solid var(--accent)' : '1px solid var(--border)',
+                borderRadius: 4, padding: '6px 0',
+                color: urlInputOpen ? 'white' : 'var(--text)', fontSize: 12, cursor: 'pointer',
+              }}
+            >
+              {t('addVideoUrl')}
+            </button>
+            {urlInputOpen && (
+              <div style={{ marginTop: 6 }}>
+                <input
+                  type="url"
+                  value={urlValue}
+                  onChange={e => setUrlValue(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleUrlSubmit(false); if (e.key === 'Escape') setUrlInputOpen(false); }}
+                  placeholder={t('videoUrlPlaceholder')}
+                  disabled={urlLoading}
+                  autoFocus
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    padding: '5px 7px', fontSize: 11,
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    borderRadius: 3, color: 'var(--text)', marginBottom: 5,
+                  }}
+                />
+                {urlError && (
+                  <div style={{ fontSize: 10, color: 'var(--danger, #e53)', marginBottom: 5 }}>
+                    {t('videoUrlError')}{urlError}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button
+                    onClick={() => handleUrlSubmit(false)}
+                    disabled={urlLoading || !urlValue.trim()}
+                    style={{
+                      flex: 1, padding: '5px 0', fontSize: 11, cursor: 'pointer',
+                      background: 'var(--surface)', border: '1px solid var(--border)',
+                      borderRadius: 3, color: 'var(--text)', opacity: urlLoading ? 0.5 : 1,
+                    }}
+                    title="Utilise l'URL directement comme source"
+                  >
+                    {t('videoUrlDirect')}
+                  </button>
+                  <button
+                    onClick={() => handleUrlSubmit(true)}
+                    disabled={urlLoading || !urlValue.trim()}
+                    style={{
+                      flex: 1, padding: '5px 0', fontSize: 11, cursor: 'pointer',
+                      background: 'var(--accent)', border: '1px solid var(--accent)',
+                      borderRadius: 3, color: 'white', opacity: urlLoading ? 0.5 : 1,
+                    }}
+                    title="Télécharge la vidéo sur le serveur"
+                  >
+                    {urlLoading ? t('videoUrlDownloading') : t('videoUrlDownload')}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
         {!drawingMode && (
@@ -569,6 +655,43 @@ function VideoProps({ element, onUpdate, videoRefs, onCaptureFrame }: { element:
       <Checkbox label={t('loop')} checked={element.loop} onChange={v => onUpdate({ ...element, loop: v })} />
       <Checkbox label={t('autoplay')} checked={element.autoplay} onChange={v => onUpdate({ ...element, autoplay: v })} />
       <Checkbox label={t('muted')} checked={element.muted} onChange={v => onUpdate({ ...element, muted: v })} />
+
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8 }}>
+        <Checkbox
+          label={t('chromaKey')}
+          checked={!!element.chromaKey}
+          onChange={v => onUpdate({ ...element, chromaKey: v ? { color: '#ffffff', tolerance: 0.3 } : undefined })}
+          disabled={!element.src.startsWith('/')}
+          title={!element.src.startsWith('/') ? (t('chromaKeyExternalDisabled') as string) : undefined}
+        />
+        {element.chromaKey && (
+          <>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('chromaKeyColor')}</div>
+              <input
+                type="color"
+                value={element.chromaKey.color}
+                onChange={e => onUpdate({ ...element, chromaKey: { ...element.chromaKey!, color: e.target.value } })}
+                style={{ width: '100%', height: 28, border: 'none', cursor: 'pointer', background: 'transparent' }}
+              />
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>
+                {t('chromaKeyTolerance')}: {Math.round(element.chromaKey.tolerance * 100)}%
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={element.chromaKey.tolerance}
+                onChange={e => onUpdate({ ...element, chromaKey: { ...element.chromaKey!, tolerance: Number(e.target.value) } })}
+                style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+              />
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -686,10 +809,10 @@ function Field({ label, value, onChange }: { label: string; value: number; onCha
   );
 }
 
-function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function Checkbox({ label, checked, onChange, disabled, title }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; title?: string }) {
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, cursor: 'pointer', fontSize: 12 }}>
-      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} style={{ accentColor: 'var(--accent)' }} />
+    <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 12, opacity: disabled ? 0.4 : 1 }} title={title}>
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} disabled={disabled} style={{ accentColor: 'var(--accent)' }} />
       {label}
     </label>
   );

@@ -60,6 +60,19 @@ export async function uploadFile(presentationId: string, file: File): Promise<{ 
   return res.json();
 }
 
+export async function uploadFromUrl(presentationId: string, url: string): Promise<{ path: string; filename: string }> {
+  const res = await fetch(`${BASE}/${presentationId}/upload-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...writeHeaders(presentationId) },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Download failed' }));
+    throw new Error(err.error ?? 'Download failed');
+  }
+  return res.json();
+}
+
 export async function fetchShareToken(id: string): Promise<string> {
   const res = await fetch(`${BASE}/${id}/share-token`, { headers: writeHeaders(id) });
   if (!res.ok) throw new Error('Cannot get share token');

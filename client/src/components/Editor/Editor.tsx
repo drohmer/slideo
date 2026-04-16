@@ -2,13 +2,13 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Presentation, Slide, SlideElement, WsMessage } from '../../types';
 import type { Editor as TiptapEditor } from '@tiptap/react';
-import { getPresentation, savePresentation, fetchShareToken, uploadFile } from '../../api';
+import { getPresentation, savePresentation, fetchShareToken, uploadFile, uploadFromUrl } from '../../api';
 import { storeShareToken, getShareToken } from '../../auth';
 import { useWebSocket } from '../../useWebSocket';
 import { useI18n } from '../../i18n';
 import { useTheme } from '../../theme';
 import { exportPresentation, exportHtmlPresentation } from '../../zipExport';
-import { EDITOR } from '../../constants';
+import { EDITOR, CANVAS } from '../../constants';
 import { SlidesSidebar } from './SlidesSidebar';
 import { SlideCanvas } from './SlideCanvas';
 import { PropertiesPanel } from './PropertiesPanel';
@@ -327,6 +327,43 @@ export function Editor() {
       fontSize: 24, color: '#000000', bold: false,
     }];
     updateCurrentSlideElements(newElements);
+  }, [pres, currentSlideIndex, updateCurrentSlideElements]);
+
+  const handleAddVideoFromUrl = useCallback(async (url: string, download: boolean): Promise<void> => {
+    const slide = pres?.slides[currentSlideIndex];
+    if (!slide) return;
+
+    let src = url;
+    if (download) {
+      src = (await uploadFromUrl(pres!.id, url)).path;
+    }
+
+    // Probe dimensions via a temporary video element
+    const dims = await new Promise<{ width: number; height: number }>(resolve => {
+      const v = document.createElement('video');
+      v.preload = 'metadata';
+      const timer = setTimeout(() => resolve({ width: 1920, height: 1080 }), 10_000);
+      v.onloadedmetadata = () => { clearTimeout(timer); resolve({ width: v.videoWidth || 1920, height: v.videoHeight || 1080 }); };
+      v.onerror = () => { clearTimeout(timer); resolve({ width: 1920, height: 1080 }); };
+      v.src = src;
+    });
+
+    const maxW = CANVAS.WIDTH * 0.75;
+    const maxH = CANVAS.HEIGHT * 0.75;
+    const scale = Math.min(maxW / dims.width, maxH / dims.height, 1);
+    const w = Math.round(dims.width * scale);
+    const h = Math.round(dims.height * scale);
+
+    updateCurrentSlideElements([...slide.elements, {
+      id: crypto.randomUUID(),
+      type: 'video' as const,
+      src,
+      x: Math.round((CANVAS.WIDTH - w) / 2),
+      y: Math.round((CANVAS.HEIGHT - h) / 2),
+      width: w, height: h,
+      naturalWidth: dims.width, naturalHeight: dims.height,
+      loop: true, autoplay: true, muted: true,
+    }]);
   }, [pres, currentSlideIndex, updateCurrentSlideElements]);
 
   const [drawingMode, setDrawingMode] = useState(false);
@@ -678,6 +715,7 @@ export function Editor() {
           activeEditor={activeEditor}
           onAddText={handleAddText}
           onAddDrawing={toggleDrawingMode}
+          onAddVideoFromUrl={handleAddVideoFromUrl}
           drawingMode={drawingMode}
           drawingColor={drawingColor}
           drawingWidth={drawingWidth}

@@ -1,6 +1,6 @@
 export interface BaseElement {
   id: string;
-  type: 'video' | 'image' | 'text';
+  type: 'video' | 'image' | 'text' | 'drawing';
   x: number;
   y: number;
   width: number;
@@ -19,6 +19,7 @@ export interface VideoElement extends BaseElement {
   cropRight?: number;  // 0-50%
   cropBottom?: number; // 0-50%
   cropLeft?: number;   // 0-50%
+  chromaKey?: { color: string; tolerance: number }; // color = hex (#rrggbb), tolerance = 0–1
 }
 
 export interface ImageElement extends BaseElement {
@@ -38,7 +39,25 @@ export interface TextElement extends BaseElement {
   bold: boolean;
 }
 
-export type SlideElement = VideoElement | ImageElement | TextElement;
+export interface Stroke {
+  points: Array<{ x: number; y: number }>;
+  color: string;
+  width: number;
+}
+
+export interface DrawingElement extends BaseElement {
+  type: 'drawing';
+  strokes: Stroke[];
+  strokeColor: string;
+  strokeWidth: number;
+}
+
+export type SlideElement = VideoElement | ImageElement | TextElement | DrawingElement;
+
+export function strokeToPath(stroke: Stroke): string {
+  if (stroke.points.length === 0) return '';
+  return stroke.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+}
 
 /** Returns the visible rect after crop (or the full rect if no crop) */
 export function getVisibleRect(el: SlideElement): { x: number; y: number; width: number; height: number } {

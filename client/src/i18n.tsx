@@ -79,6 +79,16 @@ const translations = {
   videoStepBack: { fr: 'Image précédente', en: 'Step back' },
   videoStepForward: { fr: 'Image suivante', en: 'Step forward' },
   captureFrame: { fr: 'Capturer cette image', en: 'Capture frame' },
+  addVideoUrl: { fr: '🔗 Depuis une URL', en: '🔗 From URL' },
+  videoUrlPlaceholder: { fr: 'Coller l\'URL de la vidéo...', en: 'Paste video URL...' },
+  videoUrlDirect: { fr: 'Lien direct', en: 'Direct link' },
+  videoUrlDownload: { fr: 'Télécharger', en: 'Download' },
+  videoUrlDownloading: { fr: 'Téléchargement…', en: 'Downloading…' },
+  videoUrlError: { fr: 'Erreur : ', en: 'Error: ' },
+  chromaKey: { fr: 'Chroma Key', en: 'Chroma Key' },
+  chromaKeyExternalDisabled: { fr: 'Non disponible pour les liens directs (CORS)', en: 'Not available for direct links (CORS)' },
+  chromaKeyColor: { fr: 'Couleur clé', en: 'Key color' },
+  chromaKeyTolerance: { fr: 'Tolérance', en: 'Tolerance' },
 
   // Drawing
   drawing: { fr: 'Dessin', en: 'Drawing' },

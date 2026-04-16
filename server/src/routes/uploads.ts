@@ -4,12 +4,11 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { authenticate, checkWriteAccess } from '../auth.js';
+import { UUID_RE } from '../validation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.resolve(__dirname, '../../uploads');
 const DATA_DIR = path.resolve(__dirname, '../../data/presentations');
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const storage = multer.diskStorage({
   destination(req, _file, cb) {
@@ -46,6 +45,8 @@ function cleanupFile(file: Express.Multer.File | undefined) {
   }
 }
 
+const PRIVATE_HOST_RE = /^(localhost|127\.|0\.0\.0\.0|::1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i;
+
 export const uploadsRouter = Router();
 
 uploadsRouter.post('/:id/upload', authenticate, upload.single('file'), (req, res) => {
@@ -67,4 +68,70 @@ uploadsRouter.post('/:id/upload', authenticate, upload.single('file'), (req, res
 
   const relativePath = `/uploads/${req.params.id}/${req.file.filename}`;
   res.json({ path: relativePath, filename: req.file.filename });
+});
+
+uploadsRouter.post('/:id/upload-url', authenticate, async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+  const presPath = path.join(DATA_DIR, `${req.params.id}.json`);
+  if (fs.existsSync(presPath)) {
+    const existing = JSON.parse(fs.readFileSync(presPath, 'utf-8'));
+    if (!checkWriteAccess(existing, req, res)) return;
+  }
+
+  const { url } = req.body as { url?: string };
+  if (!url || typeof url !== 'string') { res.status(400).json({ error: 'url required' }); return; }
+
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { res.status(400).json({ error: 'Invalid URL' }); return; }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    res.status(400).json({ error: 'Only http/https allowed' }); return;
+  }
+  if (PRIVATE_HOST_RE.test(parsed.hostname)) {
+    res.status(400).json({ error: 'Private addresses not allowed' }); return;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  } catch { res.status(400).json({ error: 'Failed to reach URL' }); return; }
+
+  if (!response.ok || !response.body) {
+    res.status(400).json({ error: `Remote returned ${response.status}` }); return;
+  }
+
+  const ct = response.headers.get('content-type') ?? '';
+  if (!ct.startsWith('video/') && !ct.startsWith('application/octet-stream')) {
+    res.status(400).json({ error: 'URL does not point to a video' }); return;
+  }
+
+  // Derive a safe filename from the URL path
+  let filename = path.basename(parsed.pathname).replace(/[^a-zA-Z0-9._-]/g, '_') || 'video';
+  if (!filename.includes('.')) filename += '.mp4';
+  filename = `${Date.now()}-${filename}`;
+
+  const uploadDir = path.join(UPLOADS_DIR, req.params.id);
+  fs.mkdirSync(uploadDir, { recursive: true });
+  const filePath = path.join(uploadDir, filename);
+  const writer = fs.createWriteStream(filePath);
+
+  const MAX = 500 * 1024 * 1024;
+  let written = 0;
+  try {
+    const reader = (response.body as ReadableStream<Uint8Array>).getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      written += value.length;
+      if (written > MAX) { reader.cancel(); throw new Error('too large'); }
+      await new Promise<void>((ok, ko) => writer.write(value, e => e ? ko(e) : ok()));
+    }
+    await new Promise<void>((ok, ko) => { writer.end(); writer.on('finish', ok); writer.on('error', ko); });
+  } catch {
+    writer.destroy();
+    try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+    res.status(400).json({ error: 'Download failed or file too large' }); return;
+  }
+
+  res.json({ path: `/uploads/${req.params.id}/${filename}`, filename });
 });
