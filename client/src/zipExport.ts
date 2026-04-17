@@ -158,6 +158,8 @@ function generateHtml(pres: Presentation): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(pres.title || 'Presentation')}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto&family=Open+Sans&family=Lato&family=Montserrat&family=Oswald&family=Playfair+Display&family=Pacifico&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:system-ui,sans-serif}
@@ -255,6 +257,7 @@ function renderSlide(i){
     }else if(el.type==='text'){
       div.style.fontSize=el.fontSize+'px';
       div.style.color=el.color;
+      div.style.fontFamily=el.fontFamily??'Arial, sans-serif';
       div.style.lineHeight='1.3';
       div.innerHTML=el.content;
     }else if(el.type==='drawing'){

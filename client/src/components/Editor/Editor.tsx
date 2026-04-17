@@ -324,7 +324,7 @@ export function Editor() {
       type: 'text' as const,
       content: t('textPlaceholder'),
       x: 50, y: 50, width: 300, height: 40,
-      fontSize: 24, color: '#000000', bold: false,
+      fontSize: 24, color: '#000000', bold: false, fontFamily: 'Arial, sans-serif',
     }];
     updateCurrentSlideElements(newElements);
   }, [pres, currentSlideIndex, updateCurrentSlideElements]);

@@ -485,7 +485,7 @@ function formatTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-import { VIDEO } from '../../constants';
+import { VIDEO, FONT_FAMILIES } from '../../constants';
 
 function VideoProps({ element, onUpdate, videoRefs, onCaptureFrame }: { element: VideoElement; onUpdate: (el: SlideElement) => void; videoRefs?: React.MutableRefObject<Map<string, HTMLVideoElement>>; onCaptureFrame?: (blob: Blob, width: number, height: number) => void }) {
   const { t } = useI18n();
@@ -703,6 +703,18 @@ function TextProps({ element, onUpdate, activeEditor, onToggleBoldItalic }: { el
   return (
     <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
       <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('text')}</div>
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('fontFamily')}</div>
+        <select
+          value={element.fontFamily ?? 'Arial, sans-serif'}
+          onChange={e => onUpdate({ ...element, fontFamily: e.target.value })}
+          style={{ ...inputStyle, fontFamily: element.fontFamily ?? 'Arial, sans-serif' }}
+        >
+          {FONT_FAMILIES.map(f => (
+            <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>
+          ))}
+        </select>
+      </div>
       <div style={{ marginBottom: 8 }}>
         <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('fontSize')}</div>
         <input

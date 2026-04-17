@@ -147,6 +147,7 @@ export function TextEl({ element, onUpdate, editing, onStopEditing, onEditorRead
       style={{
         fontSize: element.fontSize,
         color: element.color,
+        fontFamily: element.fontFamily ?? 'Arial, sans-serif',
         lineHeight: 1.3,
         width: '100%',
         height: '100%',

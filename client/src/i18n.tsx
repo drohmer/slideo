@@ -99,6 +99,7 @@ const translations = {
 
   // Text
   text: { fr: 'Texte', en: 'Text' },
+  fontFamily: { fr: 'Police', en: 'Font' },
   fontSize: { fr: 'Taille police', en: 'Font size' },
   color: { fr: 'Couleur', en: 'Color' },
   bold: { fr: 'Gras', en: 'Bold' },

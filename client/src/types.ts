@@ -37,6 +37,7 @@ export interface TextElement extends BaseElement {
   fontSize: number;
   color: string;
   bold: boolean;
+  fontFamily?: string;
 }
 
 export interface Stroke {
