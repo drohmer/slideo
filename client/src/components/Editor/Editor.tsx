@@ -329,6 +329,23 @@ export function Editor() {
     updateCurrentSlideElements(newElements);
   }, [pres, currentSlideIndex, updateCurrentSlideElements]);
 
+  const handleAddTitle = useCallback(() => {
+    const slide = pres?.slides[currentSlideIndex];
+    if (!slide) return;
+    const width = 860;
+    const newElements = [...slide.elements, {
+      id: crypto.randomUUID(),
+      type: 'text' as const,
+      content: `<p style="text-align:center"><strong>${t('titlePlaceholder')}</strong></p>`,
+      x: Math.round((CANVAS.WIDTH - width) / 2),
+      y: 30,
+      width,
+      height: 70,
+      fontSize: 48, color: '#000000', bold: true, fontFamily: 'Arial, sans-serif',
+    }];
+    updateCurrentSlideElements(newElements);
+  }, [pres, currentSlideIndex, updateCurrentSlideElements, t]);
+
   const handleAddVideoFromUrl = useCallback(async (url: string, download: boolean): Promise<void> => {
     const slide = pres?.slides[currentSlideIndex];
     if (!slide) return;
@@ -714,6 +731,7 @@ export function Editor() {
           onPreview={setPreviewPositions}
           activeEditor={activeEditor}
           onAddText={handleAddText}
+          onAddTitle={handleAddTitle}
           onAddDrawing={toggleDrawingMode}
           onAddVideoFromUrl={handleAddVideoFromUrl}
           drawingMode={drawingMode}

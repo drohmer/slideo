@@ -73,6 +73,34 @@ export async function uploadFromUrl(presentationId: string, url: string): Promis
   return res.json();
 }
 
+export interface ImportWarnings {
+  failedVideos: { title: string; reason: string }[];
+}
+
+export interface ImportResult extends Presentation {
+  warnings?: ImportWarnings;
+}
+
+export async function importFromGoogleSlides(url: string, slideIndex?: number): Promise<ImportResult> {
+  const res = await fetch(`${BASE}/import-from-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({ url, slideIndex }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Import failed', code: 'unknown' }));
+    const e = new Error(err.error ?? 'Import failed') as Error & { code?: string; status?: number };
+    e.code = err.code;
+    e.status = res.status;
+    throw e;
+  }
+  const data: ImportResult = await res.json();
+  if (data.editToken) {
+    storeEditToken(data.id, data.editToken);
+  }
+  return data;
+}
+
 export async function fetchShareToken(id: string): Promise<string> {
   const res = await fetch(`${BASE}/${id}/share-token`, { headers: writeHeaders(id) });
   if (!res.ok) throw new Error('Cannot get share token');

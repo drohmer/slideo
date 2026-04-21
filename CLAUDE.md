@@ -2,7 +2,7 @@
 
 ## Stack
 - **Client**: React 18 + TypeScript + Vite, React Router, TipTap (rich text), JSZip
-- **Server**: Express + TypeScript, multer (uploads), ws (WebSocket), JWT + bcrypt (auth)
+- **Server**: Express + TypeScript, multer (uploads), ws (WebSocket), JWT + bcrypt (auth), JSZip + fast-xml-parser (PPTX import)
 - **Storage**: JSON files on disk (`server/data/`), media in `server/uploads/`
 
 ## Build & Run
@@ -33,6 +33,7 @@ Le composant central. Gère tout le state et le passe aux sous-composants.
 | `updateElement()` | Met à jour un élément + sync WebSocket (throttled) |
 | `updateCurrentSlideElements()` | Remplace tous les éléments du slide courant |
 | `handleAddText()` | Crée un TextElement par défaut |
+| `handleAddTitle()` | Crée un TextElement préformaté "titre" : fontSize 48, gras (HTML `<strong>`), centré horizontalement en haut du canvas (x=50, y=30, width=860) |
 | `toggleDrawingMode()` / `handleDrawingComplete()` | Gère le mode dessin libre (state `drawingMode`) |
 | `handleSelectElement()` | Sélection simple/shift/déselection |
 | `handleShare()` | Récupère le shareToken + copie le lien |
@@ -65,7 +66,7 @@ Le plus gros fichier. Gère le rendu du slide, les interactions souris, et le de
 | Repère | Rôle |
 |--------|------|
 | Mode collapsed | Mini-boutons (T, ✎, 🗑) |
-| Mode vide | Boutons `+ Texte` / `+ Dessin` (toggle drawingMode), contrôles couleur/épaisseur si drawingMode actif, fond de slide |
+| Mode vide | Boutons `+ Texte` / `+ Titre` / `+ Dessin` (toggle drawingMode), contrôles couleur/épaisseur si drawingMode actif, fond de slide |
 | `AlignSection` | Alignement multi-sélection : left/center/right, top/center/bottom, sameWidth/Height/Both, preview au hover |
 | `VideoProps` | ⏮/▶⏸/⏹/⏭ (contrôles lecture), scrubber, vitesse (0.25×–2×), loop/autoplay/muted, bouton capture frame (📷) |
 | `TextProps` | FontSize, color picker, bold/italic (via TipTap si édition active, sinon toggleBoldItalicRef) |
@@ -104,12 +105,17 @@ Miniatures avec preview des éléments (scale `THUMB_W / CANVAS.WIDTH`). Boutons
 - **`VideoElement.tsx`** / **`ImageElement.tsx`** — Rendu simple avec `object-fit: cover`. Crop via `clip-path: inset()` appliqué par le parent (SlideCanvas).
 
 ### Services
-- **`api.ts`** — `writeHeaders(id)` injecte automatiquement `Authorization`, `x-edit-token`, `x-share-token`. Fonctions : `listPresentations`, `getPresentation`, `createPresentation`, `savePresentation`, `deletePresentation`, `uploadFile`, `fetchShareToken`.
+- **`api.ts`** — `writeHeaders(id)` injecte automatiquement `Authorization`, `x-edit-token`, `x-share-token`. Fonctions : `listPresentations`, `getPresentation`, `createPresentation`, `savePresentation`, `deletePresentation`, `uploadFile`, `uploadFromUrl`, `importFromGoogleSlides(url, slideIndex?)` → `{ ...Presentation, warnings?: { failedVideos: { title, reason }[] } }`, `fetchShareToken`.
 - **`auth.tsx`** — `AuthProvider` (login/register/logout via `/api/auth/*`). Stockage tokens dans localStorage : `slideo-token` (JWT), `slideo-edit-tokens` (map id→token), `slideo-share-tokens` (map id→token).
 - **`useWebSocket.ts`** — Hook avec reconnexion expo backoff (1s→30s), throttle 50ms sur `sendThrottled`, flush au unmount.
 - **`zipExport.ts`** — `exportPresentation()` (zip JSON+media), `exportHtmlPresentation()` (zip HTML autonome+media, player JS vanilla inline avec swipe/clavier/dots), `importPresentation()` (zip → upload media → remap paths).
 - **`i18n.tsx`** — Clés FR/EN dans objet `translations`, contexte `useI18n()` → `{ t, lang, setLang }`.
 - **`theme.tsx`** — CSS variables injectées sur `:root`, mode light/dark, contexte `useTheme()`.
+
+### Home.tsx — Liste des présentations
+Page d'accueil. Affiche : header avec boutons EN/FR + dark/light mode (`useI18n` + `useTheme`, même ordre que dans l'éditeur), `Connexion`, `Importer Google Slides`, `Importer .zip`, `+ Nouvelle présentation`. Cards cliquables (navigate vers `/edit/{id}`) avec bouton supprimer si `canDelete()`. Drop-zone full-page pour les `.zip`.
+
+**Modal Google Slides** : champ URL + champ optionnel "Numéro de slide" (1-based, vide = tout importer). Au retour, si `warnings.failedVideos.length > 0` → modal secondaire avec la liste des vidéos non téléchargées avant de naviguer vers l'éditeur.
 
 ### Presenter — `components/Presenter/`
 - **`Presenter.tsx`** — Fullscreen, scale responsive (`viewport` state + resize listener). Navigation : flèches, espace, swipe tactile (`touchStart`/`touchEnd` avec seuil 50px), zones de tap (30% gauche/droite), dots cliquables.
@@ -134,22 +140,33 @@ Setup : `ensureDefaultUser()`, `startCleanupJob()`, CORS credentials, `express.j
 | `checkWriteAccess(existing, req, res)` | Vérifie : shareToken header → ownerId → editToken → legacy (aucun champ = autorisé) |
 
 ### validation.ts — Validation partagée
-`UUID_RE` regex + `validateId` middleware (400 si `:id` n'est pas un UUID v4).
+`UUID_RE` regex + `validateId` middleware (400 si `:id` n'est pas un UUID v4). Appliqué **par-route** sur les paths `/:id` (pas en `router.use('/:id', ...)`) pour ne pas intercepter les paths statiques comme `/import-from-url`.
+
+### ssrf.ts — Protection SSRF partagée
+`PRIVATE_HOST_RE` (blocklist : loopback, RFC1918, link-local, IPv6 ULA) + `safeFetch(url, opts)` + `safeFetchToFile(url, path, opts)`. Options : `allowedHosts` (exact ou wildcard `*.example.com`), `maxBytes`, `timeoutMs`, `allowedContentTypes` (préfixes), `maxRedirects` (re-validation par hop). Retourne `SafeFetchError { status, code, message }`. Utilisé par `routes/uploads.ts` (upload-url) et `routes/presentations.ts` (import-from-url).
+
+### pptx-parser.ts — Parser PPTX
+`parsePptx(buffer)` → `{ slideSize, slides[], media: Map<name, Buffer>, title? }`. Pour chaque slide : extrait `<p:sp>` (textes), `<p:pic>` (images), `<p:grpSp>` (récursif). Pour les pictures, détecte `<a:hlinkClick>` vers `drive.google.com/file/d/{ID}` → champ `driveVideoId` (et `title` depuis l'attribut PPTX). Skip silencieux : tables, charts, SmartArt, animations.
+
+### pptx-to-slideo.ts — Convertisseur PPTX → Slideo
+`async convertPptxToSlides(parsed, opts)` → `{ slides, failedVideos[] }`. EMU→pixels (ratio canvas/slideSize), runs PPTX → HTML TipTap (`<strong>`/`<em>`). Pour chaque picture avec `driveVideoId` : `safeFetchToFile` vers `https://drive.google.com/uc?export=download&id=...` (allowlist `drive.google.com`, `drive.usercontent.google.com`, `*.googleusercontent.com`, maxRedirects 5, maxBytes 100MB, content-type `video/*` ou `application/octet-stream`) → `VideoElement` (loop+autoplay+muted=true). Si échec → fallback `ImageElement` du thumbnail + entrée dans `failedVideos`. Option `slideIndices?: number[]` (1-based) pour ne convertir qu'un sous-ensemble ; les media non référencés ne sont pas écrits.
 
 ### routes/presentations.ts — CRUD présentations
-Toutes les routes passent par `authenticate` + `validateId` sur `/:id`.
+Toutes les routes passent par `authenticate`. `validateId` est appliqué **par-route** uniquement sur les paths `/:id` (pour ne pas intercepter `/import-from-url`).
 
 | Route | Rôle |
 |-------|------|
 | `GET /` | Liste filtrée par `ownerId === req.user.id` ([] si anonyme) |
 | `GET /:id` | Public, strip `editToken` + `shareToken` via `stripSecrets()` |
 | `POST /` | Crée avec `ownerId` (si connecté) ou `anonymous + editToken + expiresAt` (sinon). Toujours un `shareToken`. |
+| `POST /import-from-url` | Body `{ url, slideIndex? }`. Regex `docs.google.com/presentation/d/{ID}` → fetch `/export/pptx` via `safeFetch` (allowlist `docs.google.com` + `*.googleusercontent.com`, maxRedirects 3) → sniff magic bytes ZIP (sinon 403 `shareRequired`) → `parsePptx` → `convertPptxToSlides`. Réponse : présentation + `warnings: { failedVideos }`. Codes erreur : `notGoogleSlides`, `shareRequired`, `parseFailed`, `invalidSlideIndex`. |
 | `GET /:id/share-token` | Retourne le shareToken (nécessite write access) |
 | `PUT /:id` | Whitelist `title` + `slides` du body. Préserve tous les champs auth du stockage. Bumpe `expiresAt` si anonymous. |
 | `DELETE /:id` | Supprime JSON + dossier uploads |
 
 ### routes/uploads.ts — Upload fichiers
-`POST /:id/upload` — multer (500MB, image/video seulement), sanitisation `path.basename + replace`, `checkWriteAccess`, cleanup fichier sur 403.
+- `POST /:id/upload` — multer (500MB, image/video seulement), sanitisation `path.basename + replace`, `checkWriteAccess`, cleanup fichier sur 403.
+- `POST /:id/upload-url` — télécharge depuis URL externe via `safeFetchToFile` (`ssrf.ts`), 500 MB max, content-types `video/*` ou `application/octet-stream`.
 
 ### routes/auth.ts — Auth endpoints
 `POST /login` (bcrypt compare → JWT), `POST /register` (validation username 2-32, password 6+, hash, re-read users après hash pour éviter race condition), `POST /logout` (204), `GET /me` (requireAuth → user info).

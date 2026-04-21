@@ -12,6 +12,7 @@ interface Props {
   onDelete: () => void;
   activeEditor: TiptapEditor | null;
   onAddText?: () => void;
+  onAddTitle?: () => void;
   onAddDrawing?: () => void;
   drawingMode?: boolean;
   drawingColor?: string;
@@ -31,7 +32,7 @@ interface Props {
   onAddVideoFromUrl?: (url: string, download: boolean) => Promise<void>;
 }
 
-export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onAddDrawing, drawingMode, drawingColor, drawingWidth, onDrawingColorChange, onDrawingWidthChange, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg, onToggleBoldItalic, videoRefs, onCaptureFrame, onAddVideoFromUrl }: Props) {
+export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onAddTitle, onAddDrawing, drawingMode, drawingColor, drawingWidth, onDrawingColorChange, onDrawingWidthChange, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg, onToggleBoldItalic, videoRefs, onCaptureFrame, onAddVideoFromUrl }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [urlInputOpen, setUrlInputOpen] = useState(false);
   const [urlValue, setUrlValue] = useState('');
@@ -71,6 +72,9 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
         {onAddText && (
           <MiniBtn title={t('addTextMini')} onClick={onAddText}>T</MiniBtn>
         )}
+        {onAddTitle && (
+          <MiniBtn title={t('addTitleMini')} onClick={onAddTitle}>H</MiniBtn>
+        )}
         {onAddDrawing && (
           <MiniBtn title={t('addDrawing')} onClick={onAddDrawing}>✎</MiniBtn>
         )}
@@ -108,6 +112,14 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
               borderRadius: 4, padding: '6px 0', color: 'var(--text)', fontSize: 12, cursor: 'pointer',
             }}>
               {t('addText')}
+            </button>
+          )}
+          {onAddTitle && (
+            <button onClick={onAddTitle} style={{
+              flex: 1, background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 4, padding: '6px 0', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}>
+              {t('addTitle')}
             </button>
           )}
           {onAddDrawing && (
