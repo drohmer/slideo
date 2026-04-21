@@ -9,6 +9,21 @@ import { useI18n } from '../../i18n';
 import { useTheme } from '../../theme';
 import { exportPresentation, exportHtmlPresentation } from '../../zipExport';
 import { EDITOR, CANVAS } from '../../constants';
+
+if (typeof document !== 'undefined') {
+  const styleId = 'slideo-editor-styles';
+  if (!document.getElementById(styleId)) {
+    const s = document.createElement('style');
+    s.id = styleId;
+    s.textContent = `
+      .editor-top-btn { transition: background 0.12s; }
+      .editor-top-btn:hover:not(:disabled) { background: var(--surface-hover) !important; }
+      .editor-present-btn { transition: filter 0.12s, transform 0.1s; }
+      .editor-present-btn:hover { filter: brightness(0.88); transform: translateY(-1px); }
+    `;
+    document.head.appendChild(s);
+  }
+}
 import { SlidesSidebar } from './SlidesSidebar';
 import { SlideCanvas } from './SlideCanvas';
 import { PropertiesPanel } from './PropertiesPanel';
@@ -652,6 +667,7 @@ export function Editor() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <button
               onClick={() => setLang(lang === 'fr' ? 'en' : 'fr')}
+              className="editor-top-btn"
               style={topBarBtn}
             >
               {lang === 'fr' ? 'EN' : 'FR'}
@@ -659,6 +675,7 @@ export function Editor() {
             <button
               onClick={() => setMode(mode === 'light' ? 'dark' : 'light')}
               title={mode === 'light' ? t('darkMode') : t('lightMode')}
+              className="editor-top-btn"
               style={{ ...topBarBtn, fontSize: 13 }}
             >
               {mode === 'light' ? '🌙' : '☀️'}
@@ -667,10 +684,10 @@ export function Editor() {
           <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
           {/* Export group */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button onClick={() => exportPresentation(pres)} style={topBarBtn}>
+            <button onClick={() => exportPresentation(pres)} className="editor-top-btn" style={topBarBtn}>
               {t('exportZip')}
             </button>
-            <button onClick={() => exportHtmlPresentation(pres)} style={topBarBtn}>
+            <button onClick={() => exportHtmlPresentation(pres)} className="editor-top-btn" style={topBarBtn}>
               {t('exportHtml')}
             </button>
           </div>
@@ -698,10 +715,11 @@ export function Editor() {
             )}
             <button
               onClick={handleShare}
+              className="editor-top-btn"
               style={{
                 ...topBarBtn,
                 color: shareCopied ? '#22c55e' : 'var(--text-muted)',
-                transition: 'color 0.2s',
+                transition: 'color 0.2s, background 0.12s',
               }}
             >
               {shareCopied ? t('shareCopied') : t('share')}
@@ -709,6 +727,7 @@ export function Editor() {
           </div>
           <button
             onClick={() => navigate(`/present/${pres.id}`)}
+            className="editor-present-btn"
             style={{
               background: 'var(--accent)', border: 'none', borderRadius: 6,
               padding: '7px 18px', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer',

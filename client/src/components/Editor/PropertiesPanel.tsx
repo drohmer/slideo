@@ -124,7 +124,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
         <div style={labelStyle}>{t('tools')}</div>
         <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
           {onAddText && (
-            <button onClick={onAddText} style={{
+            <button onClick={onAddText} className="pp-btn" style={{
               flex: 1, background: 'var(--surface)', border: '1px solid var(--border)',
               borderRadius: 4, padding: '6px 0', color: 'var(--text)', fontSize: 12, cursor: 'pointer',
             }}>
@@ -132,7 +132,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
             </button>
           )}
           {onAddTitle && (
-            <button onClick={onAddTitle} style={{
+            <button onClick={onAddTitle} className="pp-btn" style={{
               flex: 1, background: 'var(--surface)', border: '1px solid var(--border)',
               borderRadius: 4, padding: '6px 0', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
             }}>
@@ -140,7 +140,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
             </button>
           )}
           {onAddDrawing && (
-            <button onClick={onAddDrawing} style={{
+            <button onClick={onAddDrawing} className={`pp-btn${drawingMode ? ' pp-btn-active' : ''}`} style={{
               flex: 1, background: drawingMode ? 'var(--accent)' : 'var(--surface)',
               border: drawingMode ? '1px solid var(--accent)' : '1px solid var(--border)',
               borderRadius: 4, padding: '6px 0',
@@ -193,6 +193,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
                         if (mode === 'segment') onShapeHasArrowChange?.(arrow);
                       }
                     }}
+                    className={`pp-btn${active ? ' pp-btn-active' : ''}`}
                     style={{
                       background: active ? 'var(--accent)' : 'var(--surface)',
                       border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
@@ -229,6 +230,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
                           opacity: shapeFill === 'transparent' ? 0.3 : 1 }} />
                       <button
                         onClick={() => onShapeFillChange?.(shapeFill === 'transparent' ? '#ffffff' : 'transparent')}
+                        className={`pp-btn${shapeFill === 'transparent' ? ' pp-btn-active' : ''}`}
                         style={{
                           fontSize: 10, padding: '4px 6px', borderRadius: 3, cursor: 'pointer',
                           background: shapeFill === 'transparent' ? 'var(--accent)' : 'var(--surface)',
@@ -247,6 +249,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
           <div style={{ marginBottom: 8 }}>
             <button
               onClick={() => { setUrlInputOpen(o => !o); setUrlError(''); }}
+              className={`pp-btn${urlInputOpen ? ' pp-btn-active' : ''}`}
               style={{
                 width: '100%', background: urlInputOpen ? 'var(--accent)' : 'var(--surface)',
                 border: urlInputOpen ? '1px solid var(--accent)' : '1px solid var(--border)',
@@ -282,6 +285,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
                   <button
                     onClick={() => handleUrlSubmit(false)}
                     disabled={urlLoading || !urlValue.trim()}
+                    className="pp-btn"
                     style={{
                       flex: 1, padding: '5px 0', fontSize: 11, cursor: 'pointer',
                       background: 'var(--surface)', border: '1px solid var(--border)',
@@ -294,6 +298,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
                   <button
                     onClick={() => handleUrlSubmit(true)}
                     disabled={urlLoading || !urlValue.trim()}
+                    className="pp-btn pp-btn-active"
                     style={{
                       flex: 1, padding: '5px 0', fontSize: 11, cursor: 'pointer',
                       background: 'var(--accent)', border: '1px solid var(--accent)',
@@ -353,6 +358,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
 
         <button
           onClick={onDelete}
+          className="pp-btn-danger"
           style={{
             marginTop: 16, width: '100%', background: 'var(--danger-light)', border: '1px solid var(--danger)',
             borderRadius: 4, padding: '6px 0', color: 'var(--danger)', fontSize: 12, cursor: 'pointer',
@@ -414,6 +420,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
                 if (croppingId === element.id) onStopCropping?.();
                 else onStartCropping?.(element.id);
               }}
+              className={`pp-btn${croppingId === element.id ? ' pp-btn-active' : ''}`}
               style={{
                 flex: 1, background: croppingId === element.id ? 'var(--accent)' : 'var(--surface)',
                 color: croppingId === element.id ? 'var(--surface)' : 'var(--text)',
@@ -426,6 +433,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
             {(element.cropTop || element.cropRight || element.cropBottom || element.cropLeft) ? (
               <button
                 onClick={() => onUpdate({ ...element, cropTop: 0, cropRight: 0, cropBottom: 0, cropLeft: 0 })}
+                className="pp-btn"
                 style={{
                   background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
                   padding: '4px 8px', fontSize: 10, cursor: 'pointer', color: 'var(--text)',
@@ -452,6 +460,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
 
       <button
         onClick={onDelete}
+        className="pp-btn-danger"
         style={{
           marginTop: 16, width: '100%', background: 'var(--danger-light)', border: '1px solid var(--danger)',
           borderRadius: 4, padding: '6px 0', color: 'var(--danger)', fontSize: 12, cursor: 'pointer',
@@ -559,6 +568,7 @@ function PreviewBtn({ label, onClick, onEnter, onLeave }: {
       onClick={onClick}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
+      className="pp-btn"
       style={panelBtnStyle}
     >
       {label}
@@ -568,7 +578,7 @@ function PreviewBtn({ label, onClick, onEnter, onLeave }: {
 
 function ActionBtn({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={panelBtnStyle}>
+    <button onClick={onClick} className="pp-btn" style={panelBtnStyle}>
       {label}
     </button>
   );
@@ -587,6 +597,22 @@ function formatTime(s: number): string {
 }
 
 import { VIDEO, FONT_FAMILIES } from '../../constants';
+
+if (typeof document !== 'undefined') {
+  const styleId = 'slideo-pp-styles';
+  if (!document.getElementById(styleId)) {
+    const s = document.createElement('style');
+    s.id = styleId;
+    s.textContent = `
+      .pp-btn { transition: background 0.12s, filter 0.12s; }
+      .pp-btn:hover:not(:disabled) { background: var(--surface-hover) !important; }
+      .pp-btn.pp-btn-active:hover:not(:disabled) { background: var(--accent) !important; filter: brightness(0.85); }
+      .pp-btn-danger { transition: background 0.12s, filter 0.12s; }
+      .pp-btn-danger:hover:not(:disabled) { filter: brightness(0.88); }
+    `;
+    document.head.appendChild(s);
+  }
+}
 
 function VideoProps({ element, onUpdate, videoRefs, onCaptureFrame }: { element: VideoElement; onUpdate: (el: SlideElement) => void; videoRefs?: React.MutableRefObject<Map<string, HTMLVideoElement>>; onCaptureFrame?: (blob: Blob, width: number, height: number) => void }) {
   const { t } = useI18n();
@@ -693,12 +719,12 @@ function VideoProps({ element, onUpdate, videoRefs, onCaptureFrame }: { element:
         <div style={{ marginBottom: 8 }}>
           {/* Playback controls row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
-            <button onClick={() => handleStep(-VIDEO.FRAME_STEP)} style={btnStyle} title={t('videoStepBack')}>⏮</button>
-            <button onClick={togglePlay} style={btnStyle} title={playing ? t('videoPause') : t('videoPlay')}>
+            <button onClick={() => handleStep(-VIDEO.FRAME_STEP)} className="pp-btn" style={btnStyle} title={t('videoStepBack')}>⏮</button>
+            <button onClick={togglePlay} className="pp-btn" style={btnStyle} title={playing ? t('videoPause') : t('videoPlay')}>
               {playing ? '⏸' : '▶'}
             </button>
-            <button onClick={handleStop} style={btnStyle} title={t('videoStop')}>⏹</button>
-            <button onClick={() => handleStep(VIDEO.FRAME_STEP)} style={btnStyle} title={t('videoStepForward')}>⏭</button>
+            <button onClick={handleStop} className="pp-btn" style={btnStyle} title={t('videoStop')}>⏹</button>
+            <button onClick={() => handleStep(VIDEO.FRAME_STEP)} className="pp-btn" style={btnStyle} title={t('videoStepForward')}>⏭</button>
             <span style={{ fontSize: 9, opacity: 0.6, whiteSpace: 'nowrap', marginLeft: 2 }}>
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
@@ -724,6 +750,7 @@ function VideoProps({ element, onUpdate, videoRefs, onCaptureFrame }: { element:
               <button
                 key={rate}
                 onClick={() => handleSpeedChange(rate)}
+                className={`pp-btn${playbackRate === rate ? ' pp-btn-active' : ''}`}
                 style={{
                   ...btnStyle,
                   width: 'auto', padding: '0 5px', fontSize: 10,
@@ -740,6 +767,7 @@ function VideoProps({ element, onUpdate, videoRefs, onCaptureFrame }: { element:
           {onCaptureFrame && (
             <button
               onClick={handleCaptureFrame}
+              className="pp-btn"
               style={{
                 marginTop: 6, width: '100%', padding: '4px 8px', fontSize: 10,
                 background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 3,
@@ -841,6 +869,7 @@ function TextProps({ element, onUpdate, activeEditor, onToggleBoldItalic }: { el
             if (activeEditor) activeEditor.chain().focus().toggleBold().run();
             else onToggleBoldItalic?.('b');
           }}
+          className="pp-btn"
           style={{
             ...formatBtnStyle,
             fontWeight: 700,
@@ -855,6 +884,7 @@ function TextProps({ element, onUpdate, activeEditor, onToggleBoldItalic }: { el
             if (activeEditor) activeEditor.chain().focus().toggleItalic().run();
             else onToggleBoldItalic?.('i');
           }}
+          className="pp-btn"
           style={{
             ...formatBtnStyle,
             fontStyle: 'italic',
@@ -896,6 +926,7 @@ function DrawingProps({ element, onUpdate }: { element: DrawingElement; onUpdate
       {element.strokes.length > 0 && (
         <button
           onClick={() => onUpdate({ ...element, strokes: [] })}
+          className="pp-btn-danger"
           style={{
             width: '100%', background: 'var(--danger-light)', border: '1px solid var(--danger)',
             borderRadius: 3, padding: '4px 0', color: 'var(--danger)', fontSize: 11, cursor: 'pointer',
@@ -945,6 +976,7 @@ function ShapeProps({ element, onUpdate }: { element: ShapeElement; onUpdate: (e
                 opacity: element.fillColor === 'transparent' ? 0.3 : 1 }} />
             <button
               onClick={() => onUpdate({ ...element, fillColor: element.fillColor === 'transparent' ? '#ffffff' : 'transparent' })}
+              className={`pp-btn${element.fillColor === 'transparent' ? ' pp-btn-active' : ''}`}
               style={{
                 fontSize: 10, padding: '4px 6px', borderRadius: 3, cursor: 'pointer',
                 background: element.fillColor === 'transparent' ? 'var(--accent)' : 'var(--surface)',
@@ -987,6 +1019,7 @@ function MiniBtn({ title, onClick, children, danger }: { title: string; onClick:
     <button
       onClick={onClick}
       title={title}
+      className={danger ? 'pp-btn pp-btn-danger' : 'pp-btn'}
       style={{
         width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4,
