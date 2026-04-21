@@ -115,6 +115,16 @@ export function Home() {
         if (file) handleImport(file);
       }}
     >
+      <style>{`
+        .home-btn-primary:hover:not(:disabled) { filter: brightness(0.88); transform: translateY(-1px); }
+        .home-btn-secondary:hover:not(:disabled) { background: var(--accent-mid) !important; transform: translateY(-1px); }
+        .home-btn-ghost:hover:not(:disabled) { background: var(--surface-hover) !important; }
+        .home-btn-danger:hover:not(:disabled) { opacity: 1 !important; background: var(--danger-light) !important; border-radius: 4px; }
+        .home-card:hover { background: var(--surface-hover) !important; transform: translateY(-1px); }
+        .home-btn-primary, .home-btn-secondary, .home-btn-ghost, .home-btn-danger, .home-card {
+          transition: background 0.15s, filter 0.15s, transform 0.12s;
+        }
+      `}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: 28, margin: 0 }}>Slideo</h1>
@@ -124,6 +134,7 @@ export function Home() {
           <button
             onClick={() => setLang(lang === 'fr' ? 'en' : 'fr')}
             title={lang === 'fr' ? 'Switch to English' : 'Passer en français'}
+            className="home-btn-ghost"
             style={{ ...btnStyle, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', padding: '8px 12px', fontWeight: 500 }}
           >
             {lang === 'fr' ? 'EN' : 'FR'}
@@ -131,6 +142,7 @@ export function Home() {
           <button
             onClick={() => setMode(mode === 'light' ? 'dark' : 'light')}
             title={mode === 'light' ? t('darkMode') : t('lightMode')}
+            className="home-btn-ghost"
             style={{ ...btnStyle, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', padding: '8px 12px' }}
           >
             {mode === 'light' ? '🌙' : '☀️'}
@@ -140,6 +152,7 @@ export function Home() {
               <span style={{ fontSize: 13, color: 'var(--text-muted)', marginRight: 4 }}>{user.username}</span>
               <button
                 onClick={logout}
+                className="home-btn-ghost"
                 style={{ ...btnStyle, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', padding: '8px 14px' }}
               >
                 {t('logout')}
@@ -148,35 +161,41 @@ export function Home() {
           ) : (
             <button
               onClick={() => setShowLogin(true)}
+              className="home-btn-ghost"
               style={{ ...btnStyle, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', padding: '8px 14px' }}
             >
               {t('login')}
             </button>
           )}
-          <button
-            onClick={() => { setGSlidesError(''); setGSlidesUrl(''); setShowGSlidesModal(true); }}
-            style={{ ...btnStyle, background: 'transparent', color: 'var(--accent)', border: '1px solid var(--accent)' }}
-          >
-            {t('importFromGoogleSlides')}
-          </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importing}
-            style={{ ...btnStyle, background: 'transparent', color: 'var(--accent)', border: '1px solid var(--accent)' }}
-          >
-            {importing ? t('importing') : t('importZip')}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".zip"
-            style={{ display: 'none' }}
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); }}
-          />
-          <button onClick={handleCreate} style={btnStyle}>
-            {t('newPresentation')}
-          </button>
         </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 48 }}>
+        <button
+          onClick={() => { setGSlidesError(''); setGSlidesUrl(''); setShowGSlidesModal(true); }}
+          className="home-btn-secondary"
+          style={{ ...btnSecondaryStyle, width: 280 }}
+        >
+          {t('importFromGoogleSlides')}
+        </button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importing}
+          className="home-btn-secondary"
+          style={{ ...btnSecondaryStyle, width: 280, opacity: importing ? 0.6 : 1 }}
+        >
+          {importing ? t('importing') : t('importZip')}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".zip"
+          style={{ display: 'none' }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); }}
+        />
+        <button onClick={handleCreate} className="home-btn-primary" style={{ ...btnStyle, width: 280 }}>
+          {t('newPresentation')}
+        </button>
       </div>
 
       {presentations.length === 0 ? (
@@ -189,6 +208,7 @@ export function Home() {
             <div
               key={p.id}
               onClick={() => navigate(`/edit/${p.id}`)}
+              className="home-card"
               style={cardStyle}
             >
               <div>
@@ -206,7 +226,8 @@ export function Home() {
                 {canDelete(p) && (
                   <button
                     onClick={(e) => handleDelete(p.id, e)}
-                    style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14, padding: '4px 8px' }}
+                    className="home-btn-danger"
+                    style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 14, padding: '4px 8px', opacity: 0.7 }}
                   >
                     {t('delete')}
                   </button>
@@ -351,6 +372,17 @@ const btnStyle: React.CSSProperties = {
   cursor: 'pointer',
 };
 
+const btnSecondaryStyle: React.CSSProperties = {
+  background: 'var(--accent-light)',
+  border: '1px solid var(--accent-mid)',
+  borderRadius: 6,
+  padding: '10px 20px',
+  color: 'var(--accent)',
+  fontSize: 14,
+  fontWeight: 500,
+  cursor: 'pointer',
+};
+
 const cardStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
@@ -360,5 +392,4 @@ const cardStyle: React.CSSProperties = {
   borderRadius: 8,
   padding: '16px 20px',
   cursor: 'pointer',
-  transition: 'background 0.15s',
 };

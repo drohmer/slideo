@@ -1,6 +1,6 @@
 export interface BaseElement {
   id: string;
-  type: 'video' | 'image' | 'text' | 'drawing';
+  type: 'video' | 'image' | 'text' | 'drawing' | 'shape';
   x: number;
   y: number;
   width: number;
@@ -53,7 +53,18 @@ export interface DrawingElement extends BaseElement {
   strokeWidth: number;
 }
 
-export type SlideElement = VideoElement | ImageElement | TextElement | DrawingElement;
+export interface ShapeElement extends BaseElement {
+  type: 'shape';
+  shapeType: 'segment' | 'rect' | 'ellipse';
+  strokeColor: string;
+  strokeWidth: number;
+  fillColor: string;
+  hasArrow: boolean;
+  p1?: { rx: number; ry: number };
+  p2?: { rx: number; ry: number };
+}
+
+export type SlideElement = VideoElement | ImageElement | TextElement | DrawingElement | ShapeElement;
 
 export function strokeToPath(stroke: Stroke): string {
   if (stroke.points.length === 0) return '';

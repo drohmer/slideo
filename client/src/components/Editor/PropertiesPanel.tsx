@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Editor as TiptapEditor } from '@tiptap/react';
-import { getVisibleRect, type SlideElement, type VideoElement, type TextElement, type DrawingElement } from '../../types';
+import { getVisibleRect, type SlideElement, type VideoElement, type TextElement, type DrawingElement, type ShapeElement } from '../../types';
 import { useI18n } from '../../i18n';
 
 type PreviewPos = Array<{ id: string; x: number; y: number; width: number; height: number }>;
@@ -19,6 +19,16 @@ interface Props {
   drawingWidth?: number;
   onDrawingColorChange?: (color: string) => void;
   onDrawingWidthChange?: (width: number) => void;
+  shapeMode?: 'segment' | 'rect' | 'ellipse' | null;
+  onSetShapeMode?: (mode: 'segment' | 'rect' | 'ellipse' | null) => void;
+  shapeColor?: string;
+  shapeStrokeWidth?: number;
+  shapeFill?: string;
+  shapeHasArrow?: boolean;
+  onShapeColorChange?: (color: string) => void;
+  onShapeStrokeWidthChange?: (width: number) => void;
+  onShapeFillChange?: (fill: string) => void;
+  onShapeHasArrowChange?: (hasArrow: boolean) => void;
   onPreview?: (positions: PreviewPos | null) => void;
   onReorder?: (elementId: string, direction: 'up' | 'down' | 'top' | 'bottom') => void;
   croppingId?: string | null;
@@ -32,7 +42,7 @@ interface Props {
   onAddVideoFromUrl?: (url: string, download: boolean) => Promise<void>;
 }
 
-export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onAddTitle, onAddDrawing, drawingMode, drawingColor, drawingWidth, onDrawingColorChange, onDrawingWidthChange, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg, onToggleBoldItalic, videoRefs, onCaptureFrame, onAddVideoFromUrl }: Props) {
+export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete, activeEditor, onAddText, onAddTitle, onAddDrawing, drawingMode, drawingColor, drawingWidth, onDrawingColorChange, onDrawingWidthChange, shapeMode, onSetShapeMode, shapeColor, shapeStrokeWidth, shapeFill, shapeHasArrow, onShapeColorChange, onShapeStrokeWidthChange, onShapeFillChange, onShapeHasArrowChange, onPreview, onReorder, croppingId, onStartCropping, onStopCropping, onSlideBgChange, currentSlideBg, onToggleBoldItalic, videoRefs, onCaptureFrame, onAddVideoFromUrl }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [urlInputOpen, setUrlInputOpen] = useState(false);
   const [urlValue, setUrlValue] = useState('');
@@ -77,6 +87,13 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
         )}
         {onAddDrawing && (
           <MiniBtn title={t('addDrawing')} onClick={onAddDrawing}>✎</MiniBtn>
+        )}
+        {onSetShapeMode && (
+          <>
+            <MiniBtn title={t('addSegment')} onClick={() => onSetShapeMode(shapeMode === 'segment' && !shapeHasArrow ? null : 'segment')}>—</MiniBtn>
+            <MiniBtn title={t('addRect')} onClick={() => onSetShapeMode(shapeMode === 'rect' ? null : 'rect')}>□</MiniBtn>
+            <MiniBtn title={t('addEllipse')} onClick={() => onSetShapeMode(shapeMode === 'ellipse' ? null : 'ellipse')}>○</MiniBtn>
+          </>
         )}
         {elements.length > 0 && (
           <MiniBtn title={t('delete')} onClick={onDelete} danger>🗑</MiniBtn>
@@ -153,6 +170,77 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
                 style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
               />
             </div>
+          </div>
+        )}
+        {onSetShapeMode && (
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 12 }}>
+            <div style={labelStyle}>{t('shapes')}</div>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+              {([
+                { mode: 'segment' as const, label: '— ' + t('addSegment'), arrow: false },
+                { mode: 'segment' as const, label: '→ ' + t('addArrow'), arrow: true },
+                { mode: 'rect' as const, label: '□ ' + t('addRect'), arrow: false },
+                { mode: 'ellipse' as const, label: '○ ' + t('addEllipse'), arrow: false },
+              ] as const).map(({ mode, label, arrow }) => {
+                const active = shapeMode === mode && (mode !== 'segment' || (shapeHasArrow ?? false) === arrow);
+                return (
+                  <button
+                    key={label}
+                    onClick={() => {
+                      if (active) { onSetShapeMode(null); }
+                      else {
+                        onSetShapeMode(mode);
+                        if (mode === 'segment') onShapeHasArrowChange?.(arrow);
+                      }
+                    }}
+                    style={{
+                      background: active ? 'var(--accent)' : 'var(--surface)',
+                      border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
+                      borderRadius: 4, padding: '4px 8px',
+                      color: active ? 'white' : 'var(--text)', fontSize: 12, cursor: 'pointer',
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {shapeMode && (
+              <div>
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('strokeColor')}</div>
+                  <input type="color" value={shapeColor ?? '#000000'} onChange={e => onShapeColorChange?.(e.target.value)}
+                    style={{ width: '100%', height: 28, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('strokeWidth')}: {shapeStrokeWidth ?? 2}</div>
+                  <input type="range" min={1} max={20} value={shapeStrokeWidth ?? 2}
+                    onChange={e => onShapeStrokeWidthChange?.(Number(e.target.value))}
+                    style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }} />
+                </div>
+                {(shapeMode === 'rect' || shapeMode === 'ellipse') && (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('shapeFill')}</div>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <input type="color"
+                        value={shapeFill === 'transparent' ? '#ffffff' : (shapeFill ?? '#ffffff')}
+                        onChange={e => onShapeFillChange?.(e.target.value)}
+                        style={{ flex: 1, height: 28, border: 'none', cursor: 'pointer', background: 'transparent',
+                          opacity: shapeFill === 'transparent' ? 0.3 : 1 }} />
+                      <button
+                        onClick={() => onShapeFillChange?.(shapeFill === 'transparent' ? '#ffffff' : 'transparent')}
+                        style={{
+                          fontSize: 10, padding: '4px 6px', borderRadius: 3, cursor: 'pointer',
+                          background: shapeFill === 'transparent' ? 'var(--accent)' : 'var(--surface)',
+                          color: shapeFill === 'transparent' ? 'white' : 'var(--text)',
+                          border: '1px solid var(--border)',
+                        }}
+                      >{t('noFill')}</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
         {onAddVideoFromUrl && (
@@ -315,6 +403,7 @@ export function PropertiesPanel({ elements, onUpdate, onUpdateMultiple, onDelete
       {element.type === 'video' && <VideoProps element={element} onUpdate={onUpdate} videoRefs={videoRefs} onCaptureFrame={onCaptureFrame} />}
       {element.type === 'text' && <TextProps element={element} onUpdate={onUpdate} activeEditor={activeEditor} onToggleBoldItalic={onToggleBoldItalic} />}
       {element.type === 'drawing' && <DrawingProps element={element} onUpdate={onUpdate} />}
+      {element.type === 'shape' && <ShapeProps element={element as ShapeElement} onUpdate={onUpdate} />}
 
       {(element.type === 'image' || element.type === 'video') && (
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 8 }}>
@@ -814,6 +903,57 @@ function DrawingProps({ element, onUpdate }: { element: DrawingElement; onUpdate
         >
           {t('clearDrawing')}
         </button>
+      )}
+    </div>
+  );
+}
+
+function ShapeProps({ element, onUpdate }: { element: ShapeElement; onUpdate: (el: SlideElement) => void }) {
+  const { t } = useI18n();
+  const hasFill = element.shapeType === 'rect' || element.shapeType === 'ellipse';
+  return (
+    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
+      <div style={{ opacity: 0.5, fontSize: 11, marginBottom: 6 }}>{t('shapes')}</div>
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('strokeColor')}</div>
+        <input type="color" value={element.strokeColor}
+          onChange={e => onUpdate({ ...element, strokeColor: e.target.value })}
+          style={{ width: '100%', height: 28, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('strokeWidth')}: {element.strokeWidth}</div>
+        <input type="range" min={1} max={20} value={element.strokeWidth}
+          onChange={e => onUpdate({ ...element, strokeWidth: Number(e.target.value) })}
+          style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }} />
+      </div>
+      {element.shapeType === 'segment' && (
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="checkbox" id="hasArrow" checked={element.hasArrow}
+            onChange={e => onUpdate({ ...element, hasArrow: e.target.checked })}
+            style={{ accentColor: 'var(--accent)', cursor: 'pointer' }} />
+          <label htmlFor="hasArrow" style={{ fontSize: 12, cursor: 'pointer' }}>{t('addArrow')}</label>
+        </div>
+      )}
+      {hasFill && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ opacity: 0.5, fontSize: 10, marginBottom: 2 }}>{t('shapeFill')}</div>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <input type="color"
+              value={element.fillColor === 'transparent' ? '#ffffff' : element.fillColor}
+              onChange={e => onUpdate({ ...element, fillColor: e.target.value })}
+              style={{ flex: 1, height: 28, border: 'none', cursor: 'pointer', background: 'transparent',
+                opacity: element.fillColor === 'transparent' ? 0.3 : 1 }} />
+            <button
+              onClick={() => onUpdate({ ...element, fillColor: element.fillColor === 'transparent' ? '#ffffff' : 'transparent' })}
+              style={{
+                fontSize: 10, padding: '4px 6px', borderRadius: 3, cursor: 'pointer',
+                background: element.fillColor === 'transparent' ? 'var(--accent)' : 'var(--surface)',
+                color: element.fillColor === 'transparent' ? 'white' : 'var(--text)',
+                border: '1px solid var(--border)',
+              }}
+            >{t('noFill')}</button>
+          </div>
+        </div>
       )}
     </div>
   );

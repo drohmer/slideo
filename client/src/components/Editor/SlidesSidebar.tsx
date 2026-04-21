@@ -217,6 +217,45 @@ function ThumbnailElement({ element }: { element: SlideElement }) {
     );
   }
 
+  // shape
+  if (element.type === 'shape') {
+    const { shapeType, width, height, strokeColor, strokeWidth, fillColor, hasArrow, p1, p2, id } = element;
+    const markerId = `thumb-arrow-${id}`;
+    return (
+      <div style={style}>
+        <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+          {shapeType === 'segment' && (() => {
+            const x1 = (p1?.rx ?? 0) * width, y1 = (p1?.ry ?? 0) * height;
+            const x2 = (p2?.rx ?? 1) * width, y2 = (p2?.ry ?? 1) * height;
+            return (
+              <>
+                {hasArrow && (
+                  <defs>
+                    <marker id={markerId} markerWidth={10} markerHeight={7} refX={9} refY={3.5} orient="auto">
+                      <polygon points="0 0, 10 3.5, 0 7" fill={strokeColor} />
+                    </marker>
+                  </defs>
+                )}
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={strokeColor} strokeWidth={strokeWidth}
+                  strokeLinecap="round" markerEnd={hasArrow ? `url(#${markerId})` : undefined} />
+              </>
+            );
+          })()}
+          {shapeType === 'rect' && (
+            <rect x={strokeWidth / 2} y={strokeWidth / 2}
+              width={Math.max(0, width - strokeWidth)} height={Math.max(0, height - strokeWidth)}
+              stroke={strokeColor} strokeWidth={strokeWidth} fill={fillColor} />
+          )}
+          {shapeType === 'ellipse' && (
+            <ellipse cx={width / 2} cy={height / 2}
+              rx={Math.max(0, width / 2 - strokeWidth / 2)} ry={Math.max(0, height / 2 - strokeWidth / 2)}
+              stroke={strokeColor} strokeWidth={strokeWidth} fill={fillColor} />
+          )}
+        </svg>
+      </div>
+    );
+  }
+
   // text
   return (
     <div style={{

@@ -100,6 +100,15 @@ const translations = {
   strokeWidth: { fr: 'Épaisseur', en: 'Stroke width' },
   clearDrawing: { fr: 'Effacer le dessin', en: 'Clear drawing' },
 
+  // Shapes
+  shapes: { fr: 'Formes', en: 'Shapes' },
+  addSegment: { fr: 'Segment', en: 'Segment' },
+  addArrow: { fr: 'Flèche', en: 'Arrow' },
+  addRect: { fr: 'Rectangle', en: 'Rectangle' },
+  addEllipse: { fr: 'Ellipse', en: 'Ellipse' },
+  shapeFill: { fr: 'Remplissage', en: 'Fill' },
+  noFill: { fr: 'Transparent', en: 'No fill' },
+
   // Text
   text: { fr: 'Texte', en: 'Text' },
   fontFamily: { fr: 'Police', en: 'Font' },
@@ -131,7 +140,7 @@ const translations = {
   // Export/Import
   exportZip: { fr: 'Export .zip', en: 'Export .zip' },
   exportHtml: { fr: 'Export HTML', en: 'Export HTML' },
-  importZip: { fr: 'Importer .zip', en: 'Import .zip' },
+  importZip: { fr: 'Importer archive Slideo (.zip)', en: 'Import Slideo archive (.zip)' },
   importing: { fr: 'Import en cours...', en: 'Importing...' },
   importFromGoogleSlides: { fr: 'Importer Google Slides', en: 'Import Google Slides' },
   googleSlidesUrl: { fr: 'URL Google Slides', en: 'Google Slides URL' },

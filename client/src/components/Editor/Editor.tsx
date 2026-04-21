@@ -386,11 +386,26 @@ export function Editor() {
   const [drawingMode, setDrawingMode] = useState(false);
   const [drawingColor, setDrawingColor] = useState('#000000');
   const [drawingWidth, setDrawingWidth] = useState(3);
+  const [shapeMode, setShapeMode] = useState<'segment' | 'rect' | 'ellipse' | null>(null);
+  const [shapeColor, setShapeColor] = useState('#000000');
+  const [shapeStrokeWidth, setShapeStrokeWidth] = useState(2);
+  const [shapeFill, setShapeFill] = useState('transparent');
+  const [shapeHasArrow, setShapeHasArrow] = useState(false);
 
   const toggleDrawingMode = useCallback(() => {
     setDrawingMode(prev => !prev);
+    setShapeMode(null);
     setSelectedIds(new Set());
     setEditingId(null);
+  }, []);
+
+  const handleSetShapeMode = useCallback((mode: 'segment' | 'rect' | 'ellipse' | null) => {
+    setShapeMode(mode);
+    if (mode !== null) {
+      setDrawingMode(false);
+      setSelectedIds(new Set());
+      setEditingId(null);
+    }
   }, []);
 
   const handleDrawingComplete = useCallback((strokes: import('../../types').Stroke[], bounds: { x: number; y: number; width: number; height: number }) => {
@@ -405,6 +420,40 @@ export function Editor() {
     updateCurrentSlideElements(newElements);
     setDrawingMode(false);
   }, [pres, currentSlideIndex, updateCurrentSlideElements, drawingColor, drawingWidth]);
+
+  const handleShapeComplete = useCallback((
+    type: 'segment' | 'rect' | 'ellipse',
+    p1: { x: number; y: number },
+    p2: { x: number; y: number },
+  ) => {
+    const slide = pres?.slides[currentSlideIndex];
+    if (!slide) return;
+    const rawW = Math.abs(p2.x - p1.x);
+    const rawH = Math.abs(p2.y - p1.y);
+    const MIN = 8;
+    const extX = rawW < MIN ? (MIN - rawW) / 2 : 0;
+    const extY = rawH < MIN ? (MIN - rawH) / 2 : 0;
+    const bx = Math.min(p1.x, p2.x) - extX;
+    const by = Math.min(p1.y, p2.y) - extY;
+    const bw = rawW + 2 * extX;
+    const bh = rawH + 2 * extY;
+    const newEl: import('../../types').ShapeElement = {
+      id: crypto.randomUUID(),
+      type: 'shape',
+      shapeType: type,
+      x: bx, y: by, width: bw, height: bh,
+      strokeColor: shapeColor,
+      strokeWidth: shapeStrokeWidth,
+      fillColor: shapeFill,
+      hasArrow: shapeHasArrow,
+      ...(type === 'segment' ? {
+        p1: { rx: (p1.x - bx) / bw, ry: (p1.y - by) / bh },
+        p2: { rx: (p2.x - bx) / bw, ry: (p2.y - by) / bh },
+      } : {}),
+    };
+    updateCurrentSlideElements([...slide.elements, newEl]);
+    setShapeMode(null);
+  }, [pres, currentSlideIndex, updateCurrentSlideElements, shapeColor, shapeStrokeWidth, shapeFill, shapeHasArrow]);
 
   const reorderElement = useCallback((elementId: string, direction: 'up' | 'down' | 'top' | 'bottom') => {
     const slide = pres?.slides[currentSlideIndex];
@@ -720,6 +769,12 @@ export function Editor() {
           drawingColor={drawingColor}
           drawingWidth={drawingWidth}
           onDrawingComplete={handleDrawingComplete}
+          shapeMode={shapeMode}
+          shapeColor={shapeColor}
+          shapeStrokeWidth={shapeStrokeWidth}
+          shapeFill={shapeFill}
+          shapeHasArrow={shapeHasArrow}
+          onShapeComplete={handleShapeComplete}
         />
 
         <PropertiesPanel
@@ -739,6 +794,16 @@ export function Editor() {
           drawingWidth={drawingWidth}
           onDrawingColorChange={setDrawingColor}
           onDrawingWidthChange={setDrawingWidth}
+          shapeMode={shapeMode}
+          onSetShapeMode={handleSetShapeMode}
+          shapeColor={shapeColor}
+          shapeStrokeWidth={shapeStrokeWidth}
+          shapeFill={shapeFill}
+          shapeHasArrow={shapeHasArrow}
+          onShapeColorChange={setShapeColor}
+          onShapeStrokeWidthChange={setShapeStrokeWidth}
+          onShapeFillChange={setShapeFill}
+          onShapeHasArrowChange={setShapeHasArrow}
           croppingId={croppingId}
           onStartCropping={setCroppingId}
           onStopCropping={commitCrop}

@@ -7,6 +7,7 @@ import { VideoEl } from '../Elements/VideoElement';
 import { ImageEl } from '../Elements/ImageElement';
 import { TextEl } from '../Elements/TextElement';
 import { DrawingEl } from '../Elements/DrawingElement';
+import { ShapeEl } from '../Elements/ShapeElement';
 
 export function Presenter() {
   const { id } = useParams<{ id: string }>();
@@ -129,6 +130,7 @@ export function Presenter() {
             {el.type === 'image' && <ImageEl element={el} />}
             {el.type === 'text' && <TextEl element={el} />}
             {el.type === 'drawing' && <DrawingEl element={el} isEditing={false} onUpdate={() => {}} />}
+            {el.type === 'shape' && <ShapeEl element={el} />}
           </div>
         ))}
       </div>

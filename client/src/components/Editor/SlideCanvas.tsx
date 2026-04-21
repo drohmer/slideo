@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { getVisibleRect, type Slide, type SlideElement, type VideoElement, type ImageElement, type Stroke } from '../../types';
+import { getVisibleRect, type Slide, type SlideElement, type VideoElement, type ImageElement, type Stroke, type ShapeElement } from '../../types';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { uploadFile } from '../../api';
 import { VideoEl } from '../Elements/VideoElement';
 import { ImageEl } from '../Elements/ImageElement';
 import { TextEl } from '../Elements/TextElement';
 import { DrawingEl } from '../Elements/DrawingElement';
+import { ShapeEl } from '../Elements/ShapeElement';
 import { ElementToolbar } from './ElementToolbar';
 import { DraggableElement } from './DraggableElement';
 import { useI18n } from '../../i18n';
@@ -109,6 +110,12 @@ interface Props {
   drawingColor?: string;
   drawingWidth?: number;
   onDrawingComplete?: (strokes: Stroke[], bounds: { x: number; y: number; width: number; height: number }) => void;
+  shapeMode?: 'segment' | 'rect' | 'ellipse' | null;
+  shapeColor?: string;
+  shapeStrokeWidth?: number;
+  shapeFill?: string;
+  shapeHasArrow?: boolean;
+  onShapeComplete?: (type: 'segment' | 'rect' | 'ellipse', p1: { x: number; y: number }, p2: { x: number; y: number }) => void;
 }
 
 const CANVAS_WIDTH = CANVAS.WIDTH;
@@ -155,6 +162,7 @@ function rectsIntersect(
 export function SlideCanvas({
   slide, presentationId, selectedIds, editingId, onSelectElement, onSelectMultiple, onUpdateElements, onUpdateElement, onUpdateMultiple, onMoveGroup, onStartEditing, onStopEditing, onEditorReady, previewPositions, croppingId, onStartCropping, onCommitCrop, onDeleteSelected, activeEditor, onToggleBoldItalic, videoRefs,
   drawingMode, drawingColor = '#000000', drawingWidth = 3, onDrawingComplete,
+  shapeMode, shapeColor = '#000000', shapeStrokeWidth = 2, shapeFill = 'transparent', shapeHasArrow = false, onShapeComplete,
 }: Props) {
   const { t } = useI18n();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -490,6 +498,8 @@ export function SlideCanvas({
             onUpdate={onUpdateElement}
           />
         );
+      case 'shape':
+        return <ShapeEl element={el as ShapeElement} />;
     }
   };
 
@@ -564,12 +574,44 @@ export function SlideCanvas({
     }
   }, [drawingMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // === Shape drawing mode state ===
+  const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(null);
+  const [shapeCurrent, setShapeCurrent] = useState<{ x: number; y: number } | null>(null);
+  const shapeDrawing = useRef(false);
+
+  const handleShapePointerDown = useCallback((e: React.PointerEvent) => {
+    if (!shapeMode) return;
+    e.stopPropagation();
+    e.preventDefault();
+    shapeDrawing.current = true;
+    (e.target as Element).setPointerCapture(e.pointerId);
+    const pt = getCanvasPoint(e);
+    setShapeStart(pt);
+    setShapeCurrent(pt);
+  }, [shapeMode, getCanvasPoint]);
+
+  const handleShapePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!shapeDrawing.current || !shapeMode) return;
+    e.stopPropagation();
+    setShapeCurrent(getCanvasPoint(e));
+  }, [shapeMode, getCanvasPoint]);
+
+  const handleShapePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!shapeDrawing.current || !shapeStart || !shapeMode) return;
+    e.stopPropagation();
+    shapeDrawing.current = false;
+    const pt = getCanvasPoint(e);
+    onShapeComplete?.(shapeMode, shapeStart, pt);
+    setShapeStart(null);
+    setShapeCurrent(null);
+  }, [shapeMode, shapeStart, getCanvasPoint, onShapeComplete]);
+
   return (
     <div
       style={{
         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding: 16, overflow: 'hidden', position: 'relative',
-        cursor: drawingMode ? 'crosshair' : (isPanning.current ? 'grabbing' : undefined),
+        cursor: (drawingMode || shapeMode) ? 'crosshair' : (isPanning.current ? 'grabbing' : undefined),
       }}
       onWheel={handleWheel}
       onMouseDown={(e) => {
@@ -680,7 +722,7 @@ export function SlideCanvas({
           )}
 
           {/* Group bounding box + resize handles */}
-          {selectedIds.size > 1 && !drawingMode && !croppingId && (() => {
+          {selectedIds.size > 1 && !drawingMode && !shapeMode && !croppingId && (() => {
             const selectedEls = slide.elements.filter(el => selectedIds.has(el.id));
             if (selectedEls.length < 2) return null;
 
@@ -735,18 +777,19 @@ export function SlideCanvas({
             );
           })()}
 
-          {/* Free drawing overlay */}
-          {drawingMode && (
+          {/* Drawing / shape overlay — active in either mode */}
+          {(drawingMode || shapeMode) && (
             <svg
               style={{
                 position: 'absolute', inset: 0, width: CANVAS_WIDTH, height: CANVAS_HEIGHT,
                 zIndex: 200, cursor: 'crosshair',
               }}
-              onPointerDown={handleFreePointerDown}
-              onPointerMove={handleFreePointerMove}
-              onPointerUp={handleFreePointerUp}
+              onPointerDown={drawingMode ? handleFreePointerDown : handleShapePointerDown}
+              onPointerMove={drawingMode ? handleFreePointerMove : handleShapePointerMove}
+              onPointerUp={drawingMode ? handleFreePointerUp : handleShapePointerUp}
             >
-              {freeStrokes.map((s, i) => (
+              {/* Free drawing strokes */}
+              {drawingMode && freeStrokes.map((s, i) => (
                 <path
                   key={i}
                   d={s.points.map((p, j) => `${j === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
@@ -754,13 +797,33 @@ export function SlideCanvas({
                   strokeLinecap="round" strokeLinejoin="round"
                 />
               ))}
-              {freeCurrentStroke && (
+              {drawingMode && freeCurrentStroke && (
                 <path
                   d={freeCurrentStroke.points.map((p, j) => `${j === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
                   fill="none" stroke={freeCurrentStroke.color} strokeWidth={freeCurrentStroke.width}
                   strokeLinecap="round" strokeLinejoin="round"
                 />
               )}
+              {/* Shape preview */}
+              {shapeMode && shapeStart && shapeCurrent && (() => {
+                const x1 = shapeStart.x, y1 = shapeStart.y;
+                const x2 = shapeCurrent.x, y2 = shapeCurrent.y;
+                const rx = Math.min(x1, x2), ry = Math.min(y1, y2);
+                const rw = Math.abs(x2 - x1), rh = Math.abs(y2 - y1);
+                if (shapeMode === 'segment') return (
+                  <line x1={x1} y1={y1} x2={x2} y2={y2}
+                    stroke={shapeColor} strokeWidth={shapeStrokeWidth} strokeLinecap="round" />
+                );
+                if (shapeMode === 'rect') return (
+                  <rect x={rx} y={ry} width={rw} height={rh}
+                    stroke={shapeColor} strokeWidth={shapeStrokeWidth} fill={shapeFill} />
+                );
+                if (shapeMode === 'ellipse') return (
+                  <ellipse cx={rx + rw / 2} cy={ry + rh / 2} rx={rw / 2} ry={rh / 2}
+                    stroke={shapeColor} strokeWidth={shapeStrokeWidth} fill={shapeFill} />
+                );
+                return null;
+              })()}
             </svg>
           )}
 

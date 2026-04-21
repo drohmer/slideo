@@ -272,9 +272,65 @@ function renderSlide(i){
         p.setAttribute('stroke-width',String(s.width));
         p.setAttribute('stroke-linecap','round');
         p.setAttribute('stroke-linejoin','round');
-
         svg.appendChild(p);
       });
+      div.appendChild(svg);
+    }else if(el.type==='shape'){
+      const ns='http://www.w3.org/2000/svg';
+      const svg=document.createElementNS(ns,'svg');
+      svg.setAttribute('viewBox','0 0 '+el.width+' '+el.height);
+      svg.style.cssText='width:100%;height:100%;display:block;overflow:visible;';
+      const sw=el.strokeWidth;
+      if(el.shapeType==='segment'){
+        const markerId='arrow-'+el.id;
+        if(el.hasArrow){
+          const defs=document.createElementNS(ns,'defs');
+          const marker=document.createElementNS(ns,'marker');
+          marker.setAttribute('id',markerId);
+          marker.setAttribute('markerWidth','10');
+          marker.setAttribute('markerHeight','7');
+          marker.setAttribute('refX','9');
+          marker.setAttribute('refY','3.5');
+          marker.setAttribute('orient','auto');
+          const poly=document.createElementNS(ns,'polygon');
+          poly.setAttribute('points','0 0, 10 3.5, 0 7');
+          poly.setAttribute('fill',el.strokeColor);
+          marker.appendChild(poly);
+          defs.appendChild(marker);
+          svg.appendChild(defs);
+        }
+        const x1=(el.p1?.rx??0)*el.width;
+        const y1=(el.p1?.ry??0)*el.height;
+        const x2=(el.p2?.rx??1)*el.width;
+        const y2=(el.p2?.ry??1)*el.height;
+        const line=document.createElementNS(ns,'line');
+        line.setAttribute('x1',String(x1));line.setAttribute('y1',String(y1));
+        line.setAttribute('x2',String(x2));line.setAttribute('y2',String(y2));
+        line.setAttribute('stroke',el.strokeColor);
+        line.setAttribute('stroke-width',String(sw));
+        line.setAttribute('stroke-linecap','round');
+        if(el.hasArrow)line.setAttribute('marker-end','url(#'+markerId+')');
+        svg.appendChild(line);
+      }else if(el.shapeType==='rect'){
+        const rect=document.createElementNS(ns,'rect');
+        rect.setAttribute('x',String(sw/2));rect.setAttribute('y',String(sw/2));
+        rect.setAttribute('width',String(Math.max(0,el.width-sw)));
+        rect.setAttribute('height',String(Math.max(0,el.height-sw)));
+        rect.setAttribute('stroke',el.strokeColor);
+        rect.setAttribute('stroke-width',String(sw));
+        rect.setAttribute('fill',el.fillColor||'transparent');
+        svg.appendChild(rect);
+      }else if(el.shapeType==='ellipse'){
+        const ellipse=document.createElementNS(ns,'ellipse');
+        ellipse.setAttribute('cx',String(el.width/2));
+        ellipse.setAttribute('cy',String(el.height/2));
+        ellipse.setAttribute('rx',String(Math.max(0,el.width/2-sw/2)));
+        ellipse.setAttribute('ry',String(Math.max(0,el.height/2-sw/2)));
+        ellipse.setAttribute('stroke',el.strokeColor);
+        ellipse.setAttribute('stroke-width',String(sw));
+        ellipse.setAttribute('fill',el.fillColor||'transparent');
+        svg.appendChild(ellipse);
+      }
       div.appendChild(svg);
     }
     stage.appendChild(div);

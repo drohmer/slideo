@@ -7,7 +7,7 @@ Conçu pour projeter des vidéos comparatives côte à côte, en boucle, lors de
 ## Fonctionnalités
 
 **Éditeur**
-- Canvas 16:9 avec drag & drop d'éléments (vidéo, image, texte, dessin libre)
+- Canvas 16:9 avec drag & drop d'éléments (vidéo, image, texte, dessin libre, formes géométriques)
 - Drag & resize avec snap magnétique (bords, centres, canvas) et contrainte d'axe (Shift)
 - **Redimensionnement de groupe** : sélectionner plusieurs éléments, tirer une des 8 poignées de la bounding box
 - Crop interactif image/vidéo
@@ -19,6 +19,7 @@ Conçu pour projeter des vidéos comparatives côte à côte, en boucle, lors de
 - Zoom (Ctrl+molette, 0.25×–3×) et pan (clic milieu+drag)
 - Éditeur de texte riche (TipTap) : gras, italique, taille, couleur
 - Bouton **+ Titre** : insère un texte préformaté (gras, fontSize 48) en haut du slide
+- **Formes géométriques** : segment (avec ou sans flèche), rectangle, ellipse — dessinées par click+drag, redimensionnables sans perte, couleur de contour/remplissage configurables
 
 **Vidéo**
 - Contrôles dans le panneau propriétés : ⏮ ▶/⏸ ⏹ ⏭, scrubber, vitesse (0.25× à 2×)
@@ -96,7 +97,7 @@ client/src/
     Home/         Liste des présentations, import zip
     Editor/       Canvas, sidebar, panneau propriétés, crop, snap, group resize
     Presenter/    Mode présentation plein écran
-    Elements/     Composants vidéo, image, texte (TipTap), dessin (SVG)
+    Elements/     Composants vidéo, image, texte (TipTap), dessin (SVG), formes géométriques (SVG)
   api.ts          Client API REST
   useWebSocket.ts Hook WebSocket temps réel
   i18n.tsx        Traductions FR/EN
