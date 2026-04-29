@@ -21,6 +21,7 @@ echo "==> Syncing project to $SERVER:$REMOTE_DIR..."
 rsync -avz --delete \
   --exclude node_modules --exclude .git \
   --exclude server/data --exclude server/uploads \
+  --exclude deploy.local.sh \
   ./ "$SERVER:$REMOTE_DIR/"
 
 echo "==> Installing dependencies and building on $SERVER..."

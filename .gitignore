@@ -3,8 +3,8 @@ dist/
 *.tsbuildinfo
 
 # Data (created at runtime)
-server/data/
-server/uploads/
+slideo-app/server/data/
+slideo-app/server/uploads/
 
 # Environment
 .env
@@ -24,7 +24,7 @@ Thumbs.db
 CLAUDE.md
 
 # Local deploy config
-deploy.local.sh
+slideo-app/deploy.local.sh
 
 # Docs internes
 objective.md

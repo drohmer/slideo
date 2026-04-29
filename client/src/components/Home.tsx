@@ -147,6 +147,16 @@ export function Home() {
           >
             {mode === 'light' ? '🌙' : '☀️'}
           </button>
+          <a
+            href="https://YOUR_WEBSITE_URL"
+            target="_blank"
+            rel="noopener noreferrer"
+            title={lang === 'fr' ? 'À propos de Slideo' : 'About Slideo'}
+            className="home-btn-ghost"
+            style={{ ...btnStyle, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', padding: '8px 12px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+          >
+            ?
+          </a>
           {user ? (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <span style={{ fontSize: 13, color: 'var(--text-muted)', marginRight: 4 }}>{user.username}</span>
