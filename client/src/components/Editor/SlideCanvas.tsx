@@ -432,11 +432,26 @@ export function SlideCanvas({
     }
   }, []);
 
+  const showUploadError = useCallback((msg: string) => {
+    setUploadError(msg);
+    setTimeout(() => setUploadError(null), 4000);
+  }, []);
+
   const onDrop = useCallback(async (files: File[]) => {
     const newElements: SlideElement[] = [...slide.elements];
 
     for (const file of files) {
-      const result = await uploadFile(presentationId, file);
+      if (file.size > MEDIA.UPLOAD_MAX_SIZE) {
+        showUploadError(`${file.name} — fichier trop volumineux (max 500 Mo)`);
+        continue;
+      }
+      let result: { path: string };
+      try {
+        result = await uploadFile(presentationId, file);
+      } catch (e) {
+        showUploadError((e as Error).message);
+        continue;
+      }
       const isVideo = file.type.startsWith('video/');
       const id = crypto.randomUUID();
 
@@ -504,6 +519,7 @@ export function SlideCanvas({
   };
 
   // === Free drawing mode state ===
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [freeStrokes, setFreeStrokes] = useState<Array<{ points: Array<{ x: number; y: number }>; color: string; width: number }>>([]);
   const [freeCurrentStroke, setFreeCurrentStroke] = useState<{ points: Array<{ x: number; y: number }>; color: string; width: number } | null>(null);
   const freeDrawing = useRef(false);
@@ -690,6 +706,21 @@ export function SlideCanvas({
               fontSize: 16, color: 'var(--accent)', pointerEvents: 'none',
             }}>
               {t('dropFiles')}
+            </div>
+          )}
+
+          {uploadError && (
+            <div
+              onClick={() => setUploadError(null)}
+              style={{
+                position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+                background: 'rgba(220, 53, 69, 0.92)', color: '#fff',
+                padding: '10px 18px', borderRadius: 8, zIndex: 200,
+                fontSize: 13, cursor: 'pointer', maxWidth: '80%', textAlign: 'center',
+                backdropFilter: 'blur(4px)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}
+            >
+              {uploadError}
             </div>
           )}
 

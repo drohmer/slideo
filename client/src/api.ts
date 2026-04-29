@@ -57,6 +57,10 @@ export async function uploadFile(presentationId: string, file: File): Promise<{ 
     headers: writeHeaders(presentationId),
     body: form,
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+    throw new Error(err.error ?? 'Upload failed');
+  }
   return res.json();
 }
 
