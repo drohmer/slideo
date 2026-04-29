@@ -27,5 +27,8 @@ CLAUDE.md
 deploy.local.sh
 
 
+# Docs internes
+docs/
+
 # Logs
 *.log
